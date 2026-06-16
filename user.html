@@ -1,0 +1,1810 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>BIMILCALL · 사용자</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="bc.css">
+<style>
+.ring-wrap{display:flex;align-items:center;gap:16px;margin-top:24px;justify-content:center}
+.ring{position:relative;width:120px;height:120px}
+.ring svg{width:100%;height:100%;transform:rotate(-90deg)}
+.ring-bg{fill:none;stroke:var(--bg3);stroke-width:8}
+.ring-fg{fill:none;stroke:var(--y);stroke-width:8;stroke-linecap:round;transition:stroke-dashoffset .5s}
+.ring-num{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:var(--mono);font-weight:800}
+.ring-num span{font-size:28px;color:var(--y)}.ring-num small{font-size:11px;color:var(--tx3);margin-top:-2px}
+.ring-info{flex:1}.ring-info b{display:block;font-size:14px;font-weight:800}.ring-info small{color:var(--tx3);font-size:12px}
+.sec-divider{height:1px;background:var(--bd);margin:24px 0}
+</style>
+</head>
+<body>
+<div id="cfgWarn" class="hide"></div>
+<div class="mobile">
+  <div class="topbar">
+    <div class="lg">BIMIL<span class="w">CALL</span></div>
+    <div id="acct"></div>
+  </div>
+
+  <!-- 홈 -->
+  <div id="u-home" class="scr on">
+    <div class="page" style="padding:0 0 24px">
+
+      <!-- 상단 카테고리 슬라이드 -->
+      <div style="background:var(--bg2);padding:18px 0;border-bottom:1px solid var(--bd)">
+        <div id="catGrid" style="display:flex;gap:14px;overflow-x:auto;padding:0 20px;scrollbar-width:none"></div>
+      </div>
+
+      <!-- FAST MATCH 카드 -->
+      <div style="padding:20px 20px 8px">
+        <div style="background:var(--y);border-radius:var(--radL);padding:20px;color:#000;margin-bottom:14px;position:relative;overflow:hidden">
+          <div style="position:absolute;right:-30px;top:-30px;width:140px;height:140px;border-radius:50%;background:rgba(255,255,255,.08)"></div>
+          <div style="position:absolute;right:16px;bottom:-12px;font-size:60px;opacity:.15">🔒</div>
+          <div style="position:relative">
+            <div style="font-size:11px;font-weight:700;letter-spacing:.5px;opacity:.85;margin-bottom:4px">SECRET MATCH 🔒</div>
+            <div style="font-size:19px;font-weight:700;line-height:1.4;margin-bottom:2px">조용히, 빠르게,<br>지금 갈 수 있는 곳</div>
+            <div style="font-size:12px;opacity:.85">한 번의 호출로 주변이 답해요</div>
+          </div>
+        </div>
+
+        <!-- 호출 폼 -->
+        <div style="background:var(--bg2);border:1px solid var(--bd);border-radius:var(--radL);padding:16px">
+          <div class="field-lb" style="margin-top:0">몇 명이세요?</div>
+          <div class="chips" id="partyChips"></div>
+          <div class="field-lb" style="margin-top:16px">어디 가요? <span style="color:var(--tx3);font-weight:500">(여러 개 가능)</span></div>
+          <div class="chips" id="catChips"></div>
+          <div class="locbox" style="margin-top:16px"><div class="pin">📍</div>
+            <div class="txt"><b id="locName">위치 확인 중…</b><small id="locCoord">--</small></div>
+            <button onclick="getLoc()">새로고침</button></div>
+          <div id="locPickWrap" class="hide">
+            <div class="muted" style="font-size:13px;margin-top:10px">위치를 자동으로 못 잡았어요. <b>주소 검색</b>하거나 지도에서 <b>내 위치를 탭</b>해 주세요.</div>
+            <button class="cta ghost" style="margin-top:8px" onclick="uSearchAddr()">🔎 주소로 찾기</button>
+            <div id="locPick" style="width:100%;height:220px;border-radius:var(--rad);margin-top:10px;background:var(--bg3);border:1px solid var(--bd);overflow:hidden"></div>
+          </div>
+          <div id="penaltyBanner"></div>
+          <button class="cta" id="callBtn" onclick="startCall()" disabled style="margin-top:18px">지금 호출하기 →</button>
+        </div>
+      </div>
+
+      <!-- 🔥 지금 핫한 곳 미리보기 -->
+      <div style="padding:20px 0 8px;background:var(--bg2);margin-top:8px;border-top:1px solid var(--bd);border-bottom:1px solid var(--bd)">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;padding:0 20px;margin-bottom:14px">
+          <div><div style="font-size:16px;font-weight:800">🔥 지금 핫한 곳</div><div style="font-size:11px;color:var(--tx3);margin-top:2px" id="homeHotSub">주변 3km 이내</div></div>
+          <button onclick="uGo('u-hot','n-hot')" style="background:none;font-size:12px;color:var(--y);font-weight:700">전체보기 ›</button>
+        </div>
+        <div id="homeHotList" style="display:flex;gap:12px;overflow-x:auto;padding:0 20px 6px;scrollbar-width:none">
+          <div class="muted" style="font-size:13px;padding:0 0 8px">불러오는 중…</div>
+        </div>
+      </div>
+
+      <!-- 🏆 내 포인트 -->
+      <div style="padding:20px">
+        <div onclick="uGo('u-my','n-my')" style="background:var(--infobg);border:1px solid var(--bd);border-radius:var(--radL);padding:14px 16px;display:flex;align-items:center;gap:12px;cursor:pointer">
+          <div style="font-size:32px">🏆</div>
+          <div style="flex:1"><div style="font-size:13px;font-weight:700;color:var(--y)">내 포인트</div>
+            <div style="font-size:20px;font-weight:800;color:var(--y);margin-top:2px" id="homePoints">--</div></div>
+          <div style="font-size:11px;color:var(--y);font-weight:700;padding:6px 10px;border:1px solid var(--y);border-radius:8px;background:var(--bg2)">MY ›</div>
+        </div>
+      </div>
+
+      <!-- 푸터 -->
+      <div style="padding:24px 20px;background:var(--bg3);border-top:1px solid var(--bd);font-size:11px;color:var(--tx3);line-height:1.8">
+        <div style="font-weight:800;color:var(--tx2);margin-bottom:8px">BimilCall (비밀콜)</div>
+        <div>대표자 : 유명환</div>
+        <div>사업자등록번호 : 등록 예정</div>
+        <div>주소 : 서울특별시 강남구</div>
+        <div>고객문의 : urildlduri@gmail.com</div>
+        <div style="margin-top:14px;display:flex;gap:14px;flex-wrap:wrap">
+          <a onclick="uGo('u-partner','n-comm')" style="color:var(--y);font-weight:800;cursor:pointer">🏪 제휴 문의하기</a>
+          <a href="terms.html" style="color:var(--tx2);font-weight:700">이용약관</a>
+          <a href="privacy.html" style="color:var(--y);font-weight:800">개인정보처리방침</a>
+        </div>
+        <div style="margin-top:16px;color:var(--tx3);font-size:10px">© 2026 BimilCall. All rights reserved.</div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- 탐색 -->
+  <div id="u-search" class="scr">
+    <div class="searching">
+      <div class="radar"><div class="ring"></div><div class="ring"></div><div class="ring"></div><div class="core">📡</div></div>
+      <div class="sr-timer mono" id="srTimer">0:60</div>
+      <div class="sr-status" id="srStatus">주변 매장에 요청을 보내는 중…</div>
+      <div class="sr-cnt">응답 <b id="srCount">0</b>곳 도착</div>
+      <div id="sortBar" class="hide" style="display:flex;gap:8px;margin-top:16px;justify-content:center">
+        <button class="chip on" id="sort-dist" onclick="setSort('dist')">📍 거리순</button>
+        <button class="chip" id="sort-wait" onclick="setSort('wait')">⏱ 대기 짧은순</button>
+      </div>
+      <div class="reslist" id="resList"></div>
+      <button class="cta ghost" style="margin-top:22px" onclick="cancelCall()">취소</button>
+    </div>
+  </div>
+
+  <!-- 매장 상세 -->
+  <div id="u-detail" class="scr">
+    <div class="page" style="padding-bottom:110px">
+      <button class="back" onclick="closeDetail()" style="background:none;color:var(--tx2);font-weight:700;font-size:14px;margin-bottom:14px">← 뒤로</button>
+      <div id="d-photo"></div>
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-top:16px">
+        <div><div class="h1" id="d-name" style="font-size:22px">매장</div>
+          <div class="muted mono" id="d-meta" style="margin-top:6px">--</div></div>
+        <div id="d-badge"></div>
+      </div>
+      <div id="d-map" style="width:100%;height:200px;border-radius:var(--rad);margin-top:18px;background:var(--bg2);border:1px solid var(--bd);overflow:hidden"></div>
+      <a id="d-route" class="cta ghost" style="margin-top:10px;display:block;text-align:center" target="_blank" rel="noopener">🧭 카카오맵 길찾기</a>
+      <div id="d-menu"></div>
+      <div id="d-info"></div>
+    </div>
+    <div style="position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:480px;background:rgba(14,14,16,.96);backdrop-filter:blur(12px);border-top:1px solid var(--bd);padding:14px 20px calc(14px + env(safe-area-inset-bottom));display:flex;gap:10px;z-index:60">
+      <button class="cta ghost" style="margin:0;flex:1" onclick="closeDetail()">뒤로</button>
+      <button class="cta" style="margin:0;flex:2" onclick="confirmMatch()">여기로 갈게요</button>
+    </div>
+  </div>
+
+  <!-- 매칭 완료 -->
+  <div id="u-matched" class="scr">
+    <div class="matched">
+      <div class="match-hero">
+        <div class="ok-ic">✓</div>
+        <h2 id="mName">매칭 완료</h2>
+        <div class="sub" id="mSub">지금 바로 입장 가능합니다</div>
+        <div class="countdown"><div class="lb">입장 마감까지</div><div class="t mono" id="mTimer">15:00</div></div>
+      </div>
+      <div class="bizdetail" id="mDetail"></div>
+      <div class="statbox" style="margin-top:14px;text-align:center">
+        <div style="font-size:13px;color:var(--tx2);line-height:1.6">매장에 도착하면 사장님이 <b style="color:var(--y)">도착 확인</b>을 눌러줘요.<br>15분 안에 안 가면 자동 노쇼 처리돼요.</div>
+      </div>
+      <button class="cta danger" style="margin-top:14px" onclick="cancelMatch()">못 가요 (취소)</button>
+    </div>
+  </div>
+
+  <!-- 익명 커뮤니티 -->
+  <div id="u-comm" class="scr">
+    <div class="page" style="padding:0 0 24px">
+      <!-- 헤더 -->
+      <div style="padding:18px 20px 14px;border-bottom:1px solid var(--bd);background:var(--bg2)">
+        <div style="display:flex;justify-content:space-between;align-items:baseline">
+          <div>
+            <div class="h1" style="font-size:22px">💬 비밀 라운지</div>
+            <div class="muted" style="font-size:12px;margin-top:4px">완전 익명 · 실시간 정보 공유</div>
+          </div>
+          <button onclick="openCommWrite()" style="background:var(--y);color:#000;border:none;padding:9px 14px;border-radius:10px;font-size:13px;font-weight:700">✏️ 글쓰기</button>
+        </div>
+        <!-- 카테고리 탭 -->
+        <div id="commTabs" style="display:flex;gap:6px;overflow-x:auto;margin-top:14px;padding-bottom:2px;scrollbar-width:none"></div>
+      </div>
+      <!-- 게시글 리스트 -->
+      <div id="commList" style="padding:0">
+        <div class="muted" style="padding:40px 20px;text-align:center;font-size:13px">불러오는 중…</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 글쓰기 모달 -->
+  <div id="commModal" class="hide" style="position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:100;overflow-y:auto;backdrop-filter:blur(6px)">
+    <div style="max-width:480px;margin:0 auto;min-height:100vh;padding:20px;display:flex;flex-direction:column">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:14px;border-bottom:1px solid var(--bd)">
+        <div style="font-size:18px;font-weight:800">✏️ 새 글 작성</div>
+        <button onclick="closeCommWrite()" style="background:none;color:var(--tx2);font-size:24px;font-weight:300">✕</button>
+      </div>
+      <div style="margin-top:18px;padding:12px 14px;background:var(--bg2);border:1px solid var(--bd);border-radius:var(--rad);display:flex;align-items:center;gap:10px">
+        <div style="font-size:22px">🎭</div>
+        <div style="flex:1">
+          <div style="font-size:11px;color:var(--tx3);font-weight:600">작성 닉네임 (자동 생성)</div>
+          <div id="commNickPreview" style="font-size:14px;font-weight:800;color:var(--y);margin-top:2px">--</div>
+        </div>
+        <button onclick="rerollNick()" style="background:var(--bg3);color:var(--y);border:none;padding:6px 10px;font-size:11px;font-weight:700;border-radius:8px">🎲 다시</button>
+      </div>
+      <div class="muted" style="font-size:11px;margin-top:8px">완전 익명 · 실명·이메일은 절대 노출되지 않습니다.</div>
+
+      <div class="field-lb" style="margin-top:18px">카테고리</div>
+      <div id="commCatChips" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+
+      <div class="field-lb" style="margin-top:16px">제목</div>
+      <input class="inp" id="commTitle" maxlength="60" placeholder="제목을 입력하세요" style="margin-top:0">
+
+      <div class="field-lb" style="margin-top:14px">내용</div>
+      <textarea class="inp" id="commContent" rows="8" maxlength="1500" placeholder="자유롭게 의견·후기·정보를 공유해주세요" style="margin-top:0;resize:vertical;min-height:160px"></textarea>
+      <div class="muted" style="font-size:11px;margin-top:6px;text-align:right" id="commCharCnt">0 / 1500</div>
+
+      <button class="cta" id="commSubmitBtn" onclick="submitComm()" style="margin-top:18px">등록하기</button>
+      <button class="cta ghost" onclick="closeCommWrite()" style="margin-top:10px">취소</button>
+    </div>
+  </div>
+
+  <!-- 글 상세 -->
+  <div id="u-comm-detail" class="scr">
+    <div class="page">
+      <button class="back" onclick="closeCommDetail()" style="background:none;color:var(--tx2);font-weight:700;font-size:14px;margin-bottom:14px">← 목록</button>
+      <div id="commDetailBody"></div>
+    </div>
+  </div>
+
+  <!-- MY -->
+  <div id="u-my" class="scr">
+    <div class="page">
+      <div class="h1">MY</div>
+      <div id="myStatus"></div>
+      <div class="h2" style="margin-top:24px">🏆 포인트</div>
+      <div id="myPoints"></div>
+      <div class="h2" style="margin-top:24px">호출 기록</div>
+      <div id="myHist"><div class="muted">아직 기록이 없어요.</div></div>
+
+      <div class="sec-divider"></div>
+      <div class="h2">개인정보 관리</div>
+      <div class="statbox" style="margin-top:0">
+        <button class="cta ghost" style="margin-top:0" onclick="downloadMyData()">📥 내 데이터 내려받기 (JSON)</button>
+        <button class="cta ghost" style="margin-top:10px" onclick="clearMyHistory()">🗑 호출 기록 모두 삭제</button>
+        <button class="cta danger" style="margin-top:10px" onclick="deleteAccount()">⚠ 회원 탈퇴 (모든 데이터 영구 삭제)</button>
+      </div>
+
+      <div class="sec-divider"></div>
+      <div style="display:flex;gap:14px;justify-content:center;padding:8px 0">
+        <a href="terms.html" style="color:var(--tx3);font-size:12px;font-weight:600">이용약관</a>
+        <span style="color:var(--bd)">·</span>
+        <a href="privacy.html" style="color:var(--tx3);font-size:12px;font-weight:600">개인정보처리방침</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- 파트너 신청 -->
+  <div id="u-partner" class="scr">
+    <div class="page">
+      <div class="h1">매장 파트너</div>
+      <div class="muted" style="margin-top:8px">사장님이세요? 매장을 등록하고 손님 호출을 받아보세요.</div>
+      <div id="partnerBody"></div>
+    </div>
+  </div>
+
+  <!-- 주변 핫플 -->
+  <div id="u-hot" class="scr">
+    <div class="page">
+      <div class="h1">🔥 이 주변 핫플</div>
+      <div class="muted" style="margin-top:8px">관리자가 추천하는 동네 핫플 모음 <span id="hotMore" style="font-weight:700;color:var(--y)"></span></div>
+      <div id="hotList" style="margin-top:18px"><div class="muted" style="font-size:13px">주변 핫플을 불러오는 중…</div></div>
+    </div>
+  </div>
+
+  <!-- 핫플 매장 상세 -->
+  <div id="u-hotdetail" class="scr">
+    <div class="page" style="padding-bottom:100px">
+      <button class="back" onclick="closeHotDetail()" style="background:none;color:var(--tx2);font-weight:700;font-size:14px;margin-bottom:14px">← 핫플 목록</button>
+      <div id="hd-photo"></div>
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-top:16px">
+        <div><div class="h1" id="hd-name" style="font-size:22px">매장</div>
+          <div class="muted mono" id="hd-meta" style="margin-top:6px">--</div></div>
+        <div id="hd-rating"></div>
+      </div>
+      <div id="hd-map" style="width:100%;height:200px;border-radius:var(--rad);margin-top:18px;background:var(--bg2);border:1px solid var(--bd);overflow:hidden"></div>
+      <a id="hd-route" class="cta ghost" style="margin-top:10px;display:block;text-align:center" target="_blank" rel="noopener">🧭 카카오맵 길찾기</a>
+
+      <!-- 핫플 1:1 호출 -->
+      <div class="statbox" style="margin-top:16px;border:2px solid var(--y)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <b style="color:var(--y);font-size:15px">📞 이 매장에 직접 호출하기</b>
+        </div>
+        <div class="muted" style="font-size:12px;margin-bottom:10px">지금 자리가 있는지 1:1로 물어봐요. 3분 안에 응답이 없으면 자동 취소.</div>
+        <div class="field-lb" style="margin-bottom:6px">인원</div>
+        <div class="chips" id="hdPartyChips"></div>
+        <button class="cta" id="hdCallBtn" style="margin-top:10px" onclick="directCall()" disabled>지금 가능 한가요?</button>
+      </div>
+
+      <div id="hd-contact"></div>
+      <div id="hd-menu"></div>
+      <div id="hd-info"></div>
+      <div class="sec-divider"></div>
+      <div class="h2">리뷰</div>
+      <div id="hd-myreview"></div>
+      <div id="hd-reviews"><div class="muted" style="font-size:13px">아직 리뷰가 없어요. 첫 리뷰를 남겨보세요.</div></div>
+    </div>
+  </div>
+
+  <!-- 핫플 직접호출 응답 대기 -->
+  <div id="u-direct" class="scr">
+    <div class="page">
+      <div style="text-align:center;padding:40px 0 30px">
+        <div class="big" style="font-size:64px">📞</div>
+        <h2 style="margin-top:16px">매장에 호출 중…</h2>
+        <p class="muted" id="dcTarget" style="margin-top:6px">--</p>
+      </div>
+      <div class="ring-wrap"><div class="ring"><svg viewBox="0 0 120 120"><circle class="ring-bg" cx="60" cy="60" r="54"/><circle id="dcRing" class="ring-fg" cx="60" cy="60" r="54"/></svg><div class="ring-num"><span id="dcSec">180</span><small>초</small></div></div>
+        <div class="ring-info"><b>응답 대기 중</b><small>3분 안에 응답이 없으면 자동 취소</small></div></div>
+      <button class="cta ghost" style="margin-top:24px" onclick="cancelDirect()">취소하기</button>
+    </div>
+  </div>
+
+  <!-- 매장이 수락 — 사용자 '갈게요/못가요' 확정 화면 -->
+  <div id="u-accepted" class="scr">
+    <div class="page">
+      <div style="text-align:center;padding:30px 0 20px">
+        <div class="big" style="font-size:64px">🎉</div>
+        <h2 style="margin-top:16px">받아줬어요!</h2>
+        <p class="muted" id="acBizName" style="margin-top:6px">--</p>
+      </div>
+      <div class="statbox" style="margin-top:0;border-color:var(--y)">
+        <div style="font-size:13px;color:var(--tx2);line-height:1.6">매장이 자리를 잡아두고 기다리고 있어요. <b style="color:var(--y)">30초 안에</b> 「갈게요」를 눌러주세요. 안 누르면 자동 취소돼요.</div>
+        <div style="text-align:center;margin-top:14px;font-size:32px;font-weight:800;color:var(--y)" id="acSec">30</div>
+      </div>
+      <button class="cta" style="margin-top:20px" onclick="confirmGoing()">🚶 갈게요</button>
+      <button class="cta ghost" style="margin-top:10px" onclick="declineGoing()">못 가요</button>
+    </div>
+  </div>
+
+  <!-- 매칭 진행 표시 바 (위치: bnav 위) -->
+  <div id="matchBar" class="match-bar hide" onclick="reopenMatch()"></div>
+
+  <div class="bnav">
+    <button id="n-home" class="on" onclick="uGo('u-home','n-home')"><span class="bi">🔍</span>호출</button>
+    <button id="n-hot" onclick="uGo('u-hot','n-hot')"><span class="bi">🔥</span>핫플</button>
+    <button id="n-comm" onclick="uGo('u-comm','n-comm')"><span class="bi">💬</span>커뮤니티</button>
+    <button id="n-my" onclick="uGo('u-my','n-my')"><span class="bi">👤</span>MY</button>
+  </div>
+</div>
+<div id="toast"></div>
+
+<script src="bc-core.js"></script>
+<script>
+const {$,toast,fmtT,haversine,distLabel,nowMs,tsMs,catOf,CATS,PARTY,CALL_TTL,MATCH_TTL,PENALTY,FALLBACK}=NW;
+let myLoc=null, sel={party:null,cats:[]};
+let curCallId=null, callUnsub=null, callTimer=null, matchTimer=null, responses=[];
+
+function subShow(id){
+  document.querySelectorAll('.mobile>.scr').forEach(s=>s.classList.remove('on'));
+  $(id).classList.add('on');
+  // 하단 탭은 메인 화면(홈/파트너/MY)에서만 표시. 상세·매칭·탐색 화면에선 숨김.
+  const bnav=document.querySelector('.bnav');
+  if(bnav){ const mainScreens=['u-home','u-hot','u-hotdetail','u-comm','u-comm-detail','u-partner','u-my']; bnav.style.display = mainScreens.includes(id)?'flex':'none'; }
+  window.scrollTo(0,0);
+}
+window.uGo=(id,nav)=>{subShow(id);document.querySelectorAll('.bnav button').forEach(b=>b.classList.remove('on'));$(nav).classList.add('on');if(id==='u-my')renderMy();if(id==='u-partner')renderPartner();if(id==='u-hot')loadHotplaces(true);if(id==='u-comm')loadCommunity();};
+
+function init(){
+  buildChips(); getLoc();
+  NW.onAuth(async u=>{
+    if(!u){ location.href='index.html'; return; }
+    const role=await NW.getRole(u);
+    // 관리자는 슈퍼유저 — 사용자 앱 그대로 열람 가능 (튕기지 않음)
+    if(role==='merchant'){ location.replace('merchant.html'); return; }
+    NW.mountAccount('acct');
+    if(role==='admin'){
+      const t=document.querySelector('.topbar');
+      const a=document.createElement('a');a.href='admin.html';a.textContent='← 관리자';
+      a.style.cssText='font-size:12px;color:var(--y);font-weight:700;margin-right:10px';
+      t.insertBefore(a,t.querySelector('#acct'));
+    }
+    refreshPenalty();
+    loadHotplaces();
+    loadPoints();
+    // 진행중인 호출 자동 복원 (위치 로딩 대기)
+    setTimeout(()=>restoreActiveCall(), 1500);
+  });
+}
+
+/* 새로고침/재진입 시 진행중인 호출을 자동 복원 */
+async function restoreActiveCall(){
+  if(!NW.uid) return;
+  if(!NW.fbLoaded) await NW.fbReady;
+  try{
+    const {collection,query,where,getDocs}=NW.fb;
+    let snap;
+    try{
+      snap=await getDocs(query(collection(NW.db,'bc_calls'),
+        where('callerId','==',NW.uid),
+        where('status','in',['searching','accepted','going','matched'])));
+    }catch(e){
+      // 인덱스 없을 경우 — callerId만으로 받아서 클라이언트 필터
+      console.warn('[restoreActiveCall] in-쿼리 인덱스 없음, 폴백:',e.code);
+      snap=await getDocs(query(collection(NW.db,'bc_calls'),where('callerId','==',NW.uid)));
+    }
+    if(snap.empty) return;
+    // 가장 최근 호출 1건 선택
+    let active=null;
+    snap.forEach(d=>{
+      const c={id:d.id,...d.data()};
+      if(!['searching','accepted','going','matched'].includes(c.status)) return;
+      // 만료된 호출은 정리
+      if(c.status==='searching' && c.expiresAt && tsMs(c.expiresAt)<nowMs()){
+        const {doc,updateDoc}=NW.fb;
+        updateDoc(doc(NW.db,'bc_calls',c.id),{status:'expired'}).catch(()=>{});
+        return;
+      }
+      // 'going' 상태에서 도착 시간 지났으면 노쇼
+      if(c.status==='going' && c.matchExpiresAt && tsMs(c.matchExpiresAt)<nowMs()){
+        const {doc,updateDoc}=NW.fb;
+        updateDoc(doc(NW.db,'bc_calls',c.id),{status:'noshow'}).catch(()=>{});
+        return;
+      }
+      // 'accepted' 상태에서 30초 지났으면 자동취소
+      if(c.status==='accepted' && c.goingDeadline && tsMs(c.goingDeadline)<nowMs()){
+        const {doc,updateDoc}=NW.fb;
+        updateDoc(doc(NW.db,'bc_calls',c.id),{status:'cancelled'}).catch(()=>{});
+        return;
+      }
+      if(!active || (c.createdAt?.toMillis?.()||0) > (active.createdAt?.toMillis?.()||0)){
+        active=c;
+      }
+    });
+    if(!active) return;
+    console.log('[restoreActiveCall] 진행중 호출 복원:', active.status, active.id);
+    await restoreCallState(active);
+  }catch(e){
+    console.warn('[restoreActiveCall] 실패:',e);
+  }
+}
+
+async function restoreCallState(c){
+  curCallId=c.id;
+  // 매장 정보 받아오기
+  let biz=null;
+  if(c.matchedBizId){
+    try{
+      const {doc,getDoc}=NW.fb;
+      const s=await getDoc(doc(NW.db,'bc_biz',c.matchedBizId));
+      if(s.exists()) biz={id:c.matchedBizId,...s.data()};
+    }catch(e){}
+  }
+  if(c.status==='searching'){
+    // 호출 중 — 호출 대기 화면 복원
+    sel={party:c.party, cats:c.cats||[c.cat]};
+    matchData=null;
+    const expEnd = c.expiresAt ? tsMs(c.expiresAt) : nowMs()+CALL_TTL*1000;
+    subShow('u-search');
+    $('resList').innerHTML=''; $('srCount').textContent='0';
+    listenResponses(); runCallTimer(expEnd);
+    toast('진행 중인 호출을 이어갑니다');
+  }else if(c.status==='accepted'){
+    // 매장 OK → 사용자 갈게요 대기
+    matchData={callId:c.id, id:c.matchedBizId, bizName:c.matchedBizName,
+      cat:c.cat, type:'ok', biz, party:c.party};
+    curHotBiz=biz;
+    $('acBizName').textContent=c.matchedBizName||'매장';
+    toast('매장이 받아줬어요! 갈게요?');
+    subShow('u-accepted');
+    const goingDeadline = c.goingDeadline ? tsMs(c.goingDeadline) : nowMs()+30000;
+    if(acTimer) clearInterval(acTimer);
+    const tick=()=>{
+      const left=Math.max(0,Math.ceil((goingDeadline-nowMs())/1000));
+      $('acSec').textContent=left;
+      if(left<=0){ clearInterval(acTimer); onAcceptedTimeout(); }
+    };
+    tick(); acTimer=setInterval(tick,500);
+    matchBarState='accepted';
+    updateMatchBar();
+  }else if(c.status==='going' || c.status==='matched'){
+    // 매칭 확정 → 도착 대기
+    matchData={callId:c.id, id:c.matchedBizId, bizName:c.matchedBizName,
+      cat:c.cat, type:'ok', biz, party:c.party, dist:biz&&myLoc?haversine(myLoc,{lat:biz.lat,lng:biz.lng}):0};
+    const end = c.matchExpiresAt ? tsMs(c.matchExpiresAt) : nowMs()+MATCH_TTL*1000;
+    toast('매칭이 진행 중이에요');
+    openMatched(end);
+  }
+}
+
+/* ── 이 주변 핫플 (승인된 매장 중 isHot=true, 3km 이내) ── */
+const HOT_RADIUS = 3000; // 3km
+let hotLoaded=false;
+async function loadHotplaces(force){
+  if(hotLoaded && !force) return;
+  if(!NW.fbLoaded) await NW.fbReady;
+  if(!NW.db) return;
+  hotLoaded=true;
+  // 위치 없으면 안내
+  if(!myLoc){
+    $('hotList').innerHTML=`<div class="penalty" style="border-color:var(--info);background:var(--infobg)"><div class="pi">📍</div><div><b style="color:var(--info)">위치 정보가 필요해요</b><div class="pt" style="color:var(--info);font-family:inherit;font-weight:600">홈에서 위치를 설정한 뒤 다시 와주세요</div></div></div>`;
+    $('hotMore').textContent='';
+    return;
+  }
+  try{
+    const {collection,getDocs,query,where}=NW.fb;
+    const snap=await getDocs(query(collection(NW.db,'bc_biz'),where('isHot','==',true)));
+    let list=snap.docs.map(d=>({id:d.id,...d.data()}));
+    // 3km 이내만 필터 + 거리순
+    list=list.filter(h=>h.lat&&h.lng).map(h=>{
+      h._dist=haversine(myLoc,{lat:h.lat,lng:h.lng});return h;
+    }).filter(h=>h._dist<=HOT_RADIUS).sort((a,b)=>a._dist-b._dist);
+    renderHot(list);
+  }catch(e){ console.warn('hotplace load',e); $('hotList').innerHTML='<div class="muted" style="font-size:13px">핫플을 불러오지 못했어요.</div>'; }
+}
+function renderHot(list){
+  // 핫플 탭
+  if(!list.length){
+    $('hotList').innerHTML='<div class="muted" style="font-size:13px">3km 이내에 등록된 핫플이 없어요.</div>';
+    $('hotMore').textContent='';
+    $('homeHotList').innerHTML='<div class="muted" style="font-size:13px;padding-bottom:8px">아직 등록된 핫플이 없어요.</div>';
+    $('homeHotSub').textContent='주변 3km 이내';
+    return;
+  }
+  $('hotMore').textContent=`${list.length}곳 · 3km 이내`;
+  $('hotList').innerHTML=list.map(h=>{
+    const cat=catOf(h.cat);
+    const dist=h._dist!=null?distLabel(h._dist):'';
+    const rating=h.ratingAvg?`<span style="color:var(--y)">⭐ ${(+h.ratingAvg).toFixed(1)}</span>`:'';
+    const img=h.photo
+      ? `<img src="${h.photo}" style="width:72px;height:72px;border-radius:10px;object-fit:cover;flex-shrink:0">`
+      : `<div class="em" style="width:72px;height:72px;font-size:32px">${cat.e}</div>`;
+    return `<div class="bizcard" style="align-items:flex-start;cursor:pointer" onclick="openHotDetail('${h.id}')">
+      ${img}
+      <div class="info"><b>${h.name||'매장'}</b>
+        <div class="meta" style="white-space:normal;font-family:inherit;color:var(--tx2);margin-top:4px">${cat.n}${h.hours?' · '+h.hours:''}</div>
+        <div style="margin-top:6px;display:flex;gap:8px;align-items:center;font-size:12px">${rating}${dist?`<span class="meta">${dist}</span>`:''}</div>
+      </div></div>`;
+  }).join('');
+
+  // 홈 미리보기 — 상위 5개, 큰 가로 카드
+  const colors=['#2D1F0F','#2A1F2D','#2D2510','#2D1A24','#0F2D24','#2D2218','#0F252D','#231A2D','#2D1A24'];
+  $('homeHotSub').textContent=`주변 3km · ${list.length}곳`;
+  $('homeHotList').innerHTML=list.slice(0,5).map((h,i)=>{
+    const cat=catOf(h.cat);
+    const dist=h._dist!=null?distLabel(h._dist):'';
+    const bg = colors[i%colors.length];
+    const photo = h.photo
+      ? `<img src="${h.photo}" style="width:100%;height:130px;object-fit:cover;border-radius:12px">`
+      : `<div style="width:100%;height:130px;border-radius:12px;background:${bg};display:flex;align-items:center;justify-content:center;font-size:48px">${cat.e}</div>`;
+    const rating=h.ratingAvg?`<span style="color:var(--y);font-weight:700">★ ${(+h.ratingAvg).toFixed(1)}</span>`:'';
+    return `<div onclick="openHotDetail('${h.id}')" style="flex-shrink:0;width:158px;cursor:pointer">
+      <div style="position:relative;margin-bottom:8px">
+        ${photo}
+        <div style="position:absolute;top:8px;left:8px;background:var(--y);color:#fff;font-size:10px;font-weight:700;padding:3px 8px;border-radius:6px">🔥 HOT</div>
+      </div>
+      <div style="font-size:13px;font-weight:700;margin-bottom:2px">${h.name||'매장'}</div>
+      <div style="font-size:11px;color:var(--tx3)">${cat.n}${dist?' · '+dist:''}</div>
+      <div style="display:flex;gap:6px;margin-top:4px;font-size:11px">${rating}</div>
+    </div>`;
+  }).join('');
+}
+
+window.openHotDetail=async(bizId)=>{
+  try{
+    const {doc,getDoc}=NW.fb;
+    const s=await getDoc(doc(NW.db,'bc_biz',bizId));
+    if(!s.exists()){toast('매장을 찾을 수 없어요');return;}
+    const b=s.data();
+    showHotDetail({id:bizId,...b});
+  }catch(e){toast('불러오기 실패: '+e.message);}
+};
+
+let curHotBiz=null;
+let dcParty=null, dcCallId=null, dcTimer=null, dcUnsub=null;
+function showHotDetail(b){
+  curHotBiz=b;
+  dcParty=null;
+  subShow('u-hotdetail');
+  const cat=catOf(b.cat);
+  // 사진
+  $('hd-photo').innerHTML = b.photo
+    ? `<img src="${b.photo}" style="width:100%;height:200px;object-fit:cover;border-radius:var(--rad)" onerror="this.parentNode.innerHTML='${hotPhotoFallback(cat)}'">`
+    : hotPhotoFallback(cat);
+  $('hd-name').textContent=b.name||'매장';
+  const dist=myLoc&&b.lat&&b.lng?' · '+distLabel(haversine(myLoc,{lat:b.lat,lng:b.lng})):'';
+  $('hd-meta').textContent=`${cat.e} ${cat.n}${dist}`;
+  // 별점
+  if(b.ratingAvg){
+    $('hd-rating').innerHTML=`<div style="text-align:right"><div style="color:var(--y);font-size:18px;font-weight:800">⭐ ${(+b.ratingAvg).toFixed(1)}</div><div style="color:var(--tx3);font-size:11px">리뷰 ${b.ratingCount||0}개</div></div>`;
+  }else{
+    $('hd-rating').innerHTML=`<div style="color:var(--tx3);font-size:12px">아직 별점 없음</div>`;
+  }
+  // 길찾기
+  if(b.lat&&b.lng)$('hd-route').href=NW.kakaoRoute(b.name,b.lat,b.lng);
+  else $('hd-route').classList.add('hide');
+  // 연락처 / 홈페이지
+  const contact=[];
+  if(b.phone) contact.push(`<div class="row"><span>전화</span><b><a href="tel:${b.phone}" style="color:var(--y)">${b.phone}</a></b></div>`);
+  if(b.website) contact.push(`<div class="row"><span>홈페이지</span><b><a href="${b.website}" target="_blank" rel="noopener" style="color:var(--y)">바로가기 →</a></b></div>`);
+  $('hd-contact').innerHTML=contact.length?`<div class="bizdetail" style="margin-top:18px">${contact.join('')}</div>`:'';
+  // 메뉴
+  if(b.menu&&b.menu.length){
+    $('hd-menu').innerHTML=`<div class="h2" style="margin-top:24px">메뉴</div><div class="bizdetail">`+
+      b.menu.map(m=>`<div class="row"><span style="color:var(--tx)">${m.name}</span><b>${m.price?m.price.toLocaleString()+'원':'-'}</b></div>`).join('')+`</div>`;
+  }else $('hd-menu').innerHTML='';
+  // 영업정보
+  const info=[];
+  if(b.hours) info.push(['영업시간',b.hours]);
+  info.push(['주차',b.parking?'가능':'정보없음']);
+  info.push(['예약',b.reservation?'가능':'정보없음']);
+  $('hd-info').innerHTML=`<div class="h2" style="margin-top:24px">영업정보</div><div class="bizdetail">`+
+    info.map(r=>`<div class="row"><span>${r[0]}</span><b>${r[1]}</b></div>`).join('')+`</div>`;
+  // 지도
+  drawHotMap(b);
+  // 핫플 직접호출 인원 칩
+  $('hdPartyChips').innerHTML=NW.PARTY.map(n=>`<button class="chip" data-n="${n}" onclick="pickDcParty(${n})">${n}${n===6?'+':''}명</button>`).join('');
+  $('hdCallBtn').disabled=true;
+  // 리뷰
+  loadHotReviews(b.id);
+}
+window.pickDcParty=n=>{
+  dcParty=n;
+  document.querySelectorAll('#hdPartyChips .chip').forEach(b=>b.classList.toggle('on',+b.dataset.n===n));
+  $('hdCallBtn').disabled = !(dcParty && curHotBiz && myLoc && !penalActive());
+};
+function hotPhotoFallback(c){return `<div style="width:100%;height:200px;border-radius:var(--rad);background:var(--bg2);border:1px solid var(--bd);display:flex;align-items:center;justify-content:center;font-size:72px">${c.e}</div>`;}
+async function drawHotMap(b){
+  const box=$('hd-map');
+  if(!b.lat||!b.lng){box.innerHTML='<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--tx3);font-size:13px">위치 정보 없음</div>';return;}
+  try{
+    const kakao=await NW.loadKakao();
+    box.innerHTML='';
+    const center=new kakao.maps.LatLng(b.lat,b.lng);
+    const map=new kakao.maps.Map(box,{center,level:4});
+    new kakao.maps.Marker({map,position:center});
+    if(myLoc){
+      const me=new kakao.maps.LatLng(myLoc.lat,myLoc.lng);
+      new kakao.maps.Marker({map,position:me,
+        image:new kakao.maps.MarkerImage('data:image/svg+xml;base64,'+btoa('<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22"><circle cx="11" cy="11" r="7" fill="#4D9FFF" stroke="#fff" stroke-width="3"/></svg>'),new kakao.maps.Size(22,22))});
+      const bounds=new kakao.maps.LatLngBounds();bounds.extend(center);bounds.extend(me);map.setBounds(bounds);
+    }
+  }catch(e){box.innerHTML='<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--tx3);font-size:12px;text-align:center;padding:10px">지도를 불러올 수 없어요</div>';}
+}
+window.closeHotDetail=()=>{ hotLoaded=false; subShow('u-hot'); curHotBiz=null; loadHotplaces(true); };
+
+/* ════════════════════════════════════════════════════════════════
+   💬 익명 커뮤니티 — bc_community
+   완전 익명: 닉네임 자동 생성, 실명·이메일 비노출
+   ════════════════════════════════════════════════════════════════ */
+
+const COMM_CATS = [
+  {k:'all',     n:'🏠 전체'},
+  {k:'live',    n:'🚦 실시간 대기현황'},
+  {k:'review',  n:'🧾 달림후기'},
+  {k:'recommend', n:'💎 구좌·담당 추천'},
+  {k:'hiring',  n:'💼 구인'},
+  {k:'free',    n:'💬 자유게시판'},
+];
+const COMM_NICK_PREFIXES = ['달림이','강남신사','역삼남','선릉형','논현러','홍대왕자','압구정고수','청담VIP','신사동신선','강남토박이','밤문화박사','VIP고객','단골손님','강남러','테헤란초보'];
+
+let commCurrentCat = 'all';
+let commUnsub = null;
+let commCachedNick = null; // 작성 모달용
+
+function genNickname(){
+  const prefix = COMM_NICK_PREFIXES[Math.floor(Math.random()*COMM_NICK_PREFIXES.length)];
+  const num = Math.floor(1000 + Math.random()*9000);
+  return `${prefix}#${num}`;
+}
+
+function commCatLabel(k){ const c=COMM_CATS.find(x=>x.k===k); return c?c.n:'기타'; }
+function commCatColor(k){
+  const map = {live:'#10B981', review:'#EF4444', recommend:'#D4AF37', hiring:'#3B82F6', free:'#7A7A88', all:'#7A7A88'};
+  return map[k]||'#7A7A88';
+}
+
+async function loadCommunity(){
+  buildCommTabs();
+  if(commUnsub){ commUnsub(); commUnsub=null; }
+  if(!NW.fbLoaded) await NW.fbReady;
+  if(!NW.db){$('commList').innerHTML='<div class="muted" style="padding:40px 20px;text-align:center">Firebase 연결 필요</div>';return;}
+  const {collection,query,orderBy,onSnapshot,limit} = NW.fb;
+  try{
+    const q = query(collection(NW.db,'bc_community'), orderBy('createdAt','desc'), limit(50));
+    commUnsub = onSnapshot(q, snap=>{
+      let posts = snap.docs.map(d=>({id:d.id,...d.data()}));
+      if(commCurrentCat!=='all') posts = posts.filter(p=>p.category===commCurrentCat);
+      renderCommList(posts);
+    }, err=>{
+      console.warn('[community] 쿼리 오류:',err);
+      $('commList').innerHTML=`<div class="muted" style="padding:40px 20px;text-align:center;font-size:13px">불러오지 못했어요<br><small>${err.code||err.message}</small></div>`;
+    });
+  }catch(e){
+    $('commList').innerHTML='<div class="muted" style="padding:40px 20px;text-align:center">오류: '+e.message+'</div>';
+  }
+}
+
+function buildCommTabs(){
+  $('commTabs').innerHTML = COMM_CATS.map(c=>{
+    const on = commCurrentCat===c.k;
+    return `<button onclick="setCommCat('${c.k}')" style="flex-shrink:0;padding:8px 14px;border-radius:20px;font-size:12px;font-weight:700;border:1.5px solid ${on?'var(--y)':'var(--bd)'};background:${on?'var(--y)':'transparent'};color:${on?'#000':'var(--tx2)'};white-space:nowrap;cursor:pointer">${c.n}</button>`;
+  }).join('');
+}
+window.setCommCat=(k)=>{commCurrentCat=k; buildCommTabs(); loadCommunity();};
+
+function renderCommList(posts){
+  if(!posts.length){
+    $('commList').innerHTML=`<div class="muted" style="padding:60px 20px;text-align:center;font-size:13px">
+      <div style="font-size:48px;margin-bottom:14px">💬</div>
+      <div>아직 글이 없어요.</div>
+      <div style="margin-top:6px;font-size:12px;color:var(--tx3)">첫 번째 글의 주인공이 되어보세요!</div>
+    </div>`;
+    return;
+  }
+  $('commList').innerHTML = posts.map(p=>{
+    const t = p.createdAt?.toDate ? p.createdAt.toDate() : new Date();
+    const ts = formatPostTime(t);
+    const catColor = commCatColor(p.category);
+    const catLabel = commCatLabel(p.category).replace(/^[^\s]+\s/,''); // 이모지 빼기
+    const catEmoji = commCatLabel(p.category).match(/^[^\s]+/)?.[0]||'';
+    return `<div onclick="openCommDetail('${p.id}')" style="padding:16px 20px;border-bottom:1px solid var(--bd);cursor:pointer;transition:.12s" onmouseover="this.style.background='var(--bg2)'" onmouseout="this.style.background='transparent'">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <span style="font-size:10px;font-weight:700;color:${catColor};background:${catColor}22;padding:3px 8px;border-radius:6px">${catEmoji} ${catLabel}</span>
+        <span style="font-size:11px;color:var(--tx3)">${ts}</span>
+      </div>
+      <div style="font-size:15px;font-weight:700;line-height:1.4;margin-bottom:6px">${escapeHtml(p.title||'')}</div>
+      <div style="font-size:12px;color:var(--tx2);line-height:1.5;max-height:36px;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">${escapeHtml((p.content||'').slice(0,120))}</div>
+      <div style="display:flex;align-items:center;gap:14px;margin-top:10px;font-size:11px;color:var(--tx3)">
+        <span style="color:var(--y);font-weight:700">🎭 ${escapeHtml(p.nickname||'익명')}</span>
+        <span>❤️ ${p.likes||0}</span>
+        <span>💬 ${p.commentCount||0}</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function formatPostTime(t){
+  const diff = (Date.now() - t.getTime()) / 1000;
+  if(diff < 60) return '방금 전';
+  if(diff < 3600) return `${Math.floor(diff/60)}분 전`;
+  if(diff < 86400) return `${Math.floor(diff/3600)}시간 전`;
+  if(diff < 604800) return `${Math.floor(diff/86400)}일 전`;
+  return `${t.getMonth()+1}/${t.getDate()}`;
+}
+
+function escapeHtml(s){
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+/* ── 글쓰기 모달 ── */
+let commWriteCat = 'free';
+
+window.openCommWrite=()=>{
+  if(!NW.uid){toast('로그인이 필요합니다');return;}
+  if(!commCachedNick) commCachedNick = genNickname();
+  $('commNickPreview').textContent = commCachedNick;
+  // 카테고리 칩 (전체 제외)
+  const writeCats = COMM_CATS.filter(c=>c.k!=='all');
+  if(!writeCats.find(c=>c.k===commWriteCat)) commWriteCat = writeCats[0].k;
+  $('commCatChips').innerHTML = writeCats.map(c=>{
+    const on = commWriteCat===c.k;
+    return `<button onclick="pickCommCat('${c.k}')" style="padding:8px 12px;border-radius:18px;font-size:12px;font-weight:700;border:1.5px solid ${on?'var(--y)':'var(--bd)'};background:${on?'var(--y)':'transparent'};color:${on?'#000':'var(--tx2)'};cursor:pointer">${c.n}</button>`;
+  }).join('');
+  $('commTitle').value='';
+  $('commContent').value='';
+  $('commCharCnt').textContent='0 / 1500';
+  $('commModal').classList.remove('hide');
+};
+window.closeCommWrite=()=>{ $('commModal').classList.add('hide'); };
+window.rerollNick=()=>{ commCachedNick = genNickname(); $('commNickPreview').textContent = commCachedNick; };
+window.pickCommCat=(k)=>{ commWriteCat=k; openCommWrite_refreshChips(); };
+function openCommWrite_refreshChips(){
+  const writeCats = COMM_CATS.filter(c=>c.k!=='all');
+  $('commCatChips').innerHTML = writeCats.map(c=>{
+    const on = commWriteCat===c.k;
+    return `<button onclick="pickCommCat('${c.k}')" style="padding:8px 12px;border-radius:18px;font-size:12px;font-weight:700;border:1.5px solid ${on?'var(--y)':'var(--bd)'};background:${on?'var(--y)':'transparent'};color:${on?'#000':'var(--tx2)'};cursor:pointer">${c.n}</button>`;
+  }).join('');
+}
+
+window.submitComm=async()=>{
+  const title=$('commTitle').value.trim();
+  const content=$('commContent').value.trim();
+  if(title.length < 2){toast('제목을 2자 이상 입력해주세요');return;}
+  if(content.length < 5){toast('내용을 5자 이상 입력해주세요');return;}
+  if(!NW.uid){toast('로그인이 필요합니다');return;}
+  const btn = $('commSubmitBtn');
+  btn.disabled=true; btn.textContent='등록 중…';
+  try{
+    const {collection,addDoc,serverTimestamp} = NW.fb;
+    await addDoc(collection(NW.db,'bc_community'),{
+      title,
+      content,
+      category: commWriteCat,
+      nickname: commCachedNick || genNickname(),
+      uid: NW.uid,
+      likes: 0,
+      commentCount: 0,
+      createdAt: serverTimestamp()
+    });
+    toast('🎉 글이 등록됐어요!');
+    commCachedNick = null; // 다음 글은 새 닉네임
+    closeCommWrite();
+  }catch(e){
+    console.error('[submitComm] 실패:',e);
+    toast('실패: '+(e.code||e.message));
+  }finally{
+    btn.disabled=false; btn.textContent='등록하기';
+  }
+};
+
+// 글자수 카운터
+document.addEventListener('input', e=>{
+  if(e.target.id==='commContent'){
+    $('commCharCnt').textContent = `${e.target.value.length} / 1500`;
+  }
+});
+
+/* ── 글 상세 ── */
+window.openCommDetail=async(postId)=>{
+  try{
+    const {doc,getDoc} = NW.fb;
+    const s = await getDoc(doc(NW.db,'bc_community',postId));
+    if(!s.exists()){toast('삭제된 글이에요');return;}
+    const p = s.data();
+    const t = p.createdAt?.toDate ? p.createdAt.toDate() : new Date();
+    const ts = formatPostTime(t);
+    const catEmoji = commCatLabel(p.category).match(/^[^\s]+/)?.[0]||'';
+    const catLabel = commCatLabel(p.category).replace(/^[^\s]+\s/,'');
+    const catColor = commCatColor(p.category);
+    const isMine = p.uid === NW.uid;
+    $('commDetailBody').innerHTML = `
+      <span style="font-size:11px;font-weight:700;color:${catColor};background:${catColor}22;padding:4px 10px;border-radius:6px;display:inline-block">${catEmoji} ${catLabel}</span>
+      <div style="font-size:22px;font-weight:800;line-height:1.4;margin-top:14px">${escapeHtml(p.title)}</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:12px;padding-bottom:14px;border-bottom:1px solid var(--bd)">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:24px">🎭</span>
+          <div><div style="font-size:13px;color:var(--y);font-weight:700">${escapeHtml(p.nickname||'익명')}</div>
+            <div style="font-size:11px;color:var(--tx3)">${ts}</div></div>
+        </div>
+        ${isMine?`<button onclick="deleteCommPost('${postId}')" style="background:var(--nobg);color:var(--no);border:1px solid var(--no);padding:6px 12px;font-size:11px;font-weight:700;border-radius:8px;cursor:pointer">🗑 삭제</button>`:''}
+      </div>
+      <div style="font-size:15px;line-height:1.8;margin-top:20px;white-space:pre-wrap;color:var(--tx)">${escapeHtml(p.content)}</div>
+      <div style="margin-top:30px;display:flex;align-items:center;gap:14px">
+        <button onclick="likeCommPost('${postId}')" style="background:var(--bg2);border:1px solid var(--bd);padding:10px 16px;border-radius:10px;font-size:13px;font-weight:700;color:var(--tx);cursor:pointer">❤️ ${p.likes||0}</button>
+        <span style="color:var(--tx3);font-size:13px">💬 댓글 ${p.commentCount||0}</span>
+      </div>
+      <div class="muted" style="font-size:11px;margin-top:24px;text-align:center;padding:14px;background:var(--bg2);border-radius:var(--rad);border:1px solid var(--bd)">
+        ※ 비방·욕설·허위정보·불법 행위 유도 게시물은 사전 통보 없이 삭제됩니다.<br>※ 익명이지만 작성자 식별이 가능하며 법적 책임은 작성자에게 있습니다.
+      </div>
+    `;
+    subShow('u-comm-detail');
+  }catch(e){toast('실패: '+e.message);}
+};
+window.closeCommDetail=()=>{ subShow('u-comm'); };
+window.likeCommPost=async(postId)=>{
+  if(!NW.uid){toast('로그인이 필요합니다');return;}
+  try{
+    const {doc,updateDoc,increment} = NW.fb;
+    await updateDoc(doc(NW.db,'bc_community',postId),{likes: increment(1)});
+    toast('❤️ 좋아요!');
+    openCommDetail(postId);
+  }catch(e){toast('실패: '+(e.code||e.message));}
+};
+window.deleteCommPost=async(postId)=>{
+  if(!confirm('이 글을 삭제할까요?'))return;
+  try{
+    const {doc,deleteDoc} = NW.fb;
+    await deleteDoc(doc(NW.db,'bc_community',postId));
+    toast('삭제 완료');
+    closeCommDetail();
+  }catch(e){toast('실패: '+(e.code||e.message));}
+};
+
+/* 핫플 1:1 직접 호출 — 특정 매장 지목 호출. 3분 응답 대기. */
+const DIRECT_TTL = 180; // 3분
+window.directCall=async()=>{
+  if(!curHotBiz || !dcParty || !myLoc){toast('인원·위치를 확인하세요');return;}
+  if(penalActive()){toast('패널티 적용 중입니다.');return;}
+  const b=curHotBiz;
+  const {collection,addDoc,serverTimestamp,Timestamp}=NW.fb;
+  const expires=Timestamp.fromMillis(nowMs()+DIRECT_TTL*1000);
+  try{
+    const ref=await addDoc(collection(NW.db,'bc_calls'),{
+      callerId:NW.uid, callerName:NW.user?.displayName||'', party:dcParty,
+      cats:[b.cat], cat:b.cat,
+      lat:myLoc.lat, lng:myLoc.lng,
+      directBizId:b.id, directBizName:b.name,   // 1:1 호출 표시
+      status:'searching', createdAt:serverTimestamp(), expiresAt:expires
+    });
+    dcCallId=ref.id;
+    $('dcTarget').textContent=b.name||'매장';
+    subShow('u-direct');
+    startDirectTimer();
+    listenDirectResponse(b.id);
+  }catch(e){toast('호출 실패: '+e.message);}
+};
+
+function startDirectTimer(){
+  const endAt = nowMs()+DIRECT_TTL*1000;
+  const total = DIRECT_TTL;
+  if(dcTimer) clearInterval(dcTimer);
+  const tick=()=>{
+    const left=Math.max(0,Math.ceil((endAt-nowMs())/1000));
+    $('dcSec').textContent=left;
+    const ring=$('dcRing');
+    if(ring){ const c=2*Math.PI*54; ring.style.strokeDasharray=c; ring.style.strokeDashoffset=c*(1-left/total); }
+    if(left<=0){ clearInterval(dcTimer); onDirectTimeout(); }
+  };
+  tick(); dcTimer=setInterval(tick,1000);
+}
+
+function listenDirectResponse(bizId){
+  if(dcUnsub) dcUnsub();
+  const {doc,onSnapshot,collection}=NW.fb;
+  const callRef=doc(NW.db,'bc_calls',dcCallId);
+  const u1=onSnapshot(callRef,s=>{
+    if(!s.exists())return;
+    const d=s.data();
+    if(d.status==='accepted' && d.matchedBizId===bizId){
+      onDirectAccepted(d);   // 매장 OK → 사용자 '갈게요' 확정 화면
+    }else if(d.status==='cancelled'||d.status==='expired'){
+      onDirectTimeout();
+    }
+  });
+  const u2=onSnapshot(collection(NW.db,'bc_calls',dcCallId,'responses'),snap=>{
+    snap.forEach(d=>{
+      const r=d.data();
+      if(r.bizId!==bizId) return;
+      if(r.type==='no'){ onDirectRejected(); }
+      else if(r.type==='soon'){ onDirectSoon(r); }
+    });
+  });
+  dcUnsub=()=>{u1();u2();};
+}
+
+let acTimer=null;
+async function onDirectAccepted(d){
+  cleanupDirect();
+  toast('🎉 매장이 받아줬어요!');
+  matchData={callId:dcCallId, id:curHotBiz?.id, bizName:d.matchedBizName||curHotBiz?.name,
+    cat:curHotBiz?.cat, type:'ok', biz:curHotBiz};
+  curCallId=dcCallId;
+  $('acBizName').textContent=d.matchedBizName||curHotBiz?.name||'매장';
+  subShow('u-accepted');
+  // 30초 카운트다운 — 안 누르면 자동 취소
+  const goingDeadline = d.goingDeadline ? tsMs(d.goingDeadline) : nowMs()+30000;
+  if(acTimer) clearInterval(acTimer);
+  const tick=()=>{
+    const left=Math.max(0,Math.ceil((goingDeadline-nowMs())/1000));
+    $('acSec').textContent=left;
+    if(left<=0){ clearInterval(acTimer); onAcceptedTimeout(); }
+  };
+  tick(); acTimer=setInterval(tick,500);
+  updateMatchBar();
+}
+function onAcceptedTimeout(){
+  if(curCallId){
+    const {doc,updateDoc}=NW.fb;
+    updateDoc(doc(NW.db,'bc_calls',curCallId),{status:'cancelled'}).catch(()=>{});
+  }
+  curCallId=null; matchData=null;
+  hideMatchBar();
+  toast('30초가 지나 자동 취소됐어요');
+  subShow('u-hotdetail');
+}
+window.confirmGoing=async()=>{
+  if(!curCallId) return;
+  if(acTimer){clearInterval(acTimer); acTimer=null;}
+  const {doc,updateDoc,serverTimestamp,Timestamp}=NW.fb;
+  try{
+    const matchExp=Timestamp.fromMillis(nowMs()+MATCH_TTL*1000);
+    await updateDoc(doc(NW.db,'bc_calls',curCallId),{
+      status:'going', goingAt:serverTimestamp(), matchExpiresAt:matchExp
+    });
+    toast('🚶 갈게요! 15분 안에 도착하세요.');
+    await awardPoints(20, '호출 성사');
+    openMatched(nowMs()+MATCH_TTL*1000);
+  }catch(e){toast('실패: '+e.message);}
+};
+window.declineGoing=async()=>{
+  if(!confirm('정말 가지 않으시겠어요?'))return;
+  if(acTimer){clearInterval(acTimer); acTimer=null;}
+  const {doc,updateDoc}=NW.fb;
+  try{ if(curCallId) await updateDoc(doc(NW.db,'bc_calls',curCallId),{status:'cancelled'}); }catch(e){}
+  curCallId=null; matchData=null;
+  hideMatchBar();
+  toast('취소했어요');
+  subShow('u-hotdetail');
+};
+function onDirectRejected(){
+  cleanupDirect();
+  cancelDirectDoc('cancelled');
+  toast('😢 죄송해요, 지금 자리가 없대요.');
+  subShow('u-hotdetail');
+}
+function onDirectSoon(r){
+  cleanupDirect();
+  cancelDirectDoc('cancelled');
+  toast('⏱ 매장이 "약 10분 후 가능"이라고 답했어요.');
+  subShow('u-hotdetail');
+}
+function onDirectTimeout(){
+  cleanupDirect();
+  cancelDirectDoc('expired');
+  toast('매장이 응답하지 않았어요. 다른 매장을 시도해보세요.');
+  subShow('u-hot');
+}
+window.cancelDirect=()=>{
+  cleanupDirect();
+  cancelDirectDoc('cancelled');
+  toast('호출을 취소했어요');
+  subShow('u-hotdetail');
+};
+function cleanupDirect(){
+  if(dcTimer){clearInterval(dcTimer);dcTimer=null;}
+  if(dcUnsub){dcUnsub();dcUnsub=null;}
+}
+async function cancelDirectDoc(status){
+  if(!dcCallId) return;
+  const {doc,updateDoc}=NW.fb;
+  try{ await updateDoc(doc(NW.db,'bc_calls',dcCallId),{status}); }catch(e){}
+  dcCallId=null;
+}
+
+/* 리뷰 시스템 — 도착완료한 매장에만 작성 가능, 1매장 1리뷰 */
+async function loadHotReviews(bizId){
+  if(!NW.fbLoaded) await NW.fbReady;
+  const {collection,query,where,getDocs,orderBy}=NW.fb;
+  // 1) 이 매장 리뷰 목록
+  let snap;
+  try{ snap=await getDocs(query(collection(NW.db,'bc_reviews'),where('bizId','==',bizId),orderBy('at','desc'))); }
+  catch(e){ snap=await getDocs(query(collection(NW.db,'bc_reviews'),where('bizId','==',bizId))); }
+  const list=snap.docs.map(d=>({id:d.id,...d.data()}));
+  // 2) 내 리뷰 자격: 이 매장에 도착완료(done) 기록이 있는지
+  let canReview=false; let myReview=null;
+  if(NW.uid){
+    canReview = await checkArrivedAt(bizId);
+    myReview = list.find(r=>r.uid===NW.uid);
+  }
+  renderReviewSection(bizId, list, canReview, myReview);
+}
+async function checkArrivedAt(bizId){
+  try{
+    const {collection,query,where,getDocs}=NW.fb;
+    const snap=await getDocs(query(collection(NW.db,'bc_calls'),
+      where('callerId','==',NW.uid),where('matchedBizId','==',bizId),where('status','==','done')));
+    return !snap.empty;
+  }catch(e){return false;}
+}
+function renderReviewSection(bizId,list,canReview,myReview){
+  // 내 리뷰 작성/표시
+  if(myReview){
+    $('hd-myreview').innerHTML=`<div class="statbox" style="margin-top:0">
+      <div style="display:flex;justify-content:space-between;align-items:start">
+        <div><b style="color:var(--y)">내 리뷰 ${'⭐'.repeat(myReview.rating)}</b>
+          <div class="muted" style="margin-top:4px;font-size:13px">${myReview.text||''}</div></div>
+        <button class="adm-btn danger" style="padding:5px 9px;font-size:11px" onclick="deleteMyReview('${myReview.id}','${bizId}')">삭제</button>
+      </div></div>`;
+  }else if(canReview){
+    $('hd-myreview').innerHTML=`<div class="statbox" style="margin-top:0">
+      <div class="field-lb" style="margin-bottom:8px">방문 후기를 남겨주세요</div>
+      <div id="rvStars" style="display:flex;gap:6px;font-size:30px;margin-bottom:10px;user-select:none">
+        ${[1,2,3,4,5].map(n=>`<span data-n="${n}" onclick="pickStar(${n})" style="cursor:pointer;color:var(--tx3)">★</span>`).join('')}
+      </div>
+      <textarea class="inp" id="rvText" rows="2" placeholder="음식·분위기·서비스 등 자유롭게"></textarea>
+      <button class="cta" style="margin-top:10px" onclick="submitReview('${bizId}')">리뷰 등록</button>
+    </div>`;
+  }else{
+    $('hd-myreview').innerHTML=`<div class="muted" style="font-size:12px;margin-bottom:14px">방문 후 도착완료한 매장만 리뷰를 작성할 수 있어요.</div>`;
+  }
+  // 리뷰 목록 (내 리뷰 제외하고 표시)
+  const others=list.filter(r=>r.uid!==NW.uid);
+  if(!others.length && !myReview){
+    $('hd-reviews').innerHTML=`<div class="muted" style="font-size:13px">아직 다른 리뷰가 없어요.</div>`;
+  }else if(!others.length){
+    $('hd-reviews').innerHTML=`<div class="muted" style="font-size:13px">다른 리뷰는 아직 없어요.</div>`;
+  }else{
+    $('hd-reviews').innerHTML=others.map(r=>{
+      const t=r.at?.toDate?r.at.toDate():null;
+      const ts=t?`${t.getMonth()+1}/${t.getDate()}`:'';
+      return `<div class="bizdetail" style="margin-top:10px">
+        <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px">
+          <b style="color:var(--y)">${'⭐'.repeat(r.rating||0)}</b>
+          <span style="color:var(--tx3);font-size:11px">${r.userName||r.uid?.slice(0,6)||''} · ${ts}</span>
+        </div>
+        <div style="color:var(--tx2);font-size:13px">${(r.text||'').replace(/</g,'&lt;')}</div></div>`;
+    }).join('');
+  }
+}
+let rvRating=0;
+window.pickStar=n=>{
+  rvRating=n;
+  document.querySelectorAll('#rvStars span').forEach(s=>{s.style.color=(+s.dataset.n<=n)?'var(--y)':'var(--tx3)';});
+};
+window.submitReview=async(bizId)=>{
+  if(!rvRating){toast('별점을 선택해 주세요');return;}
+  const text=$('rvText').value.trim();
+  const {doc,setDoc,getDoc,serverTimestamp,getDocs,collection,query,where,updateDoc}=NW.fb;
+  const reviewId=`${bizId}_${NW.uid}`;
+  try{
+    // 신규 작성인지 확인 (이미 있으면 수정만, 포인트 X)
+    const existing = await getDoc(doc(NW.db,'bc_reviews',reviewId));
+    const isNew = !existing.exists();
+    await setDoc(doc(NW.db,'bc_reviews',reviewId),{
+      bizId, bizName:curHotBiz?.name||'', uid:NW.uid,
+      userName:NW.user?.displayName||'', rating:rvRating, text, at:serverTimestamp()
+    });
+    // 매장 평균 갱신
+    await updateBizRating(bizId);
+    toast('리뷰가 등록됐어요. 감사합니다!');
+    if(isNew) await awardPoints(50, '리뷰 작성');
+    rvRating=0; loadHotReviews(bizId);
+  }catch(e){toast('실패: '+e.message);}
+};
+window.deleteMyReview=async(reviewId,bizId)=>{
+  if(!confirm('내 리뷰를 삭제할까요?'))return;
+  const {doc,deleteDoc}=NW.fb;
+  try{
+    await deleteDoc(doc(NW.db,'bc_reviews',reviewId));
+    await updateBizRating(bizId);
+    toast('삭제 완료'); loadHotReviews(bizId);
+  }catch(e){toast('실패: '+e.message);}
+};
+async function updateBizRating(bizId){
+  const {collection,query,where,getDocs,doc,updateDoc}=NW.fb;
+  const snap=await getDocs(query(collection(NW.db,'bc_reviews'),where('bizId','==',bizId)));
+  if(snap.empty){
+    await updateDoc(doc(NW.db,'bc_biz',bizId),{ratingAvg:0,ratingCount:0}).catch(()=>{});
+    return;
+  }
+  let sum=0,n=0;
+  snap.forEach(d=>{const r=d.data();if(r.rating){sum+=r.rating;n++;}});
+  const avg=n?+(sum/n).toFixed(2):0;
+  await updateDoc(doc(NW.db,'bc_biz',bizId),{ratingAvg:avg,ratingCount:n}).catch(()=>{});
+}
+
+function buildChips(){
+  $('partyChips').innerHTML=PARTY.map(p=>`<button class="chip" data-p="${p}" onclick="pickParty(${p})">${p}${p===6?'+':''}명</button>`).join('');
+  $('catChips').innerHTML=CATS.map(c=>`<button class="chip" data-c="${c.k}" onclick="pickCat('${c.k}')">${c.e} ${c.n}</button>`).join('');
+  // 상단 카테고리 그리드 (가로 스크롤)
+  const colors=['#2D1F0F','#2A1F2D','#2D2510','#2D1A24','#0F2D24','#2D2218','#0F252D','#231A2D','#2D1A24'];
+  $('catGrid').innerHTML=CATS.map((c,i)=>`<div onclick="quickPickCat('${c.k}')" style="text-align:center;flex-shrink:0;width:62px;cursor:pointer">
+    <div style="width:54px;height:54px;border-radius:50%;background:${colors[i%colors.length]};display:flex;align-items:center;justify-content:center;font-size:26px;margin:0 auto 4px">${c.e}</div>
+    <div style="font-size:11px;font-weight:600;color:var(--tx2)">${c.n}</div></div>`).join('');
+}
+window.quickPickCat=k=>{
+  // 호출 폼 카테고리 칩 활성화 + 스크롤
+  if(!sel.cats.includes(k)) sel.cats.push(k);
+  document.querySelectorAll('#catChips .chip').forEach(b=>b.classList.toggle('on',sel.cats.includes(b.dataset.c)));
+  chkReady();
+  toast(`${catOf(k).n} 선택됨`);
+  document.querySelector('#callBtn')?.scrollIntoView({behavior:'smooth',block:'center'});
+};
+window.pickParty=p=>{sel.party=p;document.querySelectorAll('#partyChips .chip').forEach(b=>b.classList.toggle('on',+b.dataset.p===p));chkReady();};
+window.pickCat=k=>{
+  const i=sel.cats.indexOf(k);
+  if(i>=0) sel.cats.splice(i,1); else sel.cats.push(k);
+  document.querySelectorAll('#catChips .chip').forEach(b=>b.classList.toggle('on',sel.cats.includes(b.dataset.c)));
+  chkReady();
+};
+function chkReady(){$('callBtn').disabled=!(sel.party&&sel.cats.length&&myLoc&&NW.cfgOk&&!penalActive());}
+
+window.getLoc=async()=>{
+  $('locName').textContent='위치 확인 중…';$('locCoord').textContent='--';
+  try{
+    const l=await NW.getGPS();
+    $('locPickWrap').classList.add('hide');
+    applyLoc(l);
+  }catch(e){
+    $('locName').textContent='위치를 잡지 못했어요';
+    $('locCoord').textContent='지도에서 직접 선택';
+    showLocPicker();
+  }
+};
+function applyLoc(l){myLoc=l;$('locName').textContent=l.name||'선택한 위치';$('locCoord').textContent=l.lat.toFixed(4)+', '+l.lng.toFixed(4);chkReady();}
+let locPicker=null;
+async function showLocPicker(){
+  $('locPickWrap').classList.remove('hide');
+  if(locPicker) return;
+  locPicker=await NW.locationPicker('locPick', myLoc||NW.FALLBACK, (lat,lng)=>{
+    applyLoc({lat,lng,name:'지도에서 선택한 위치'});
+  });
+}
+window.uSearchAddr=()=>{
+  NW.searchAddress(r=>{
+    if(r.lat&&r.lng) applyLoc({lat:r.lat,lng:r.lng,name:r.address});
+    else showLocPicker();
+  });
+};
+
+let penaltyUntil=0;
+async function refreshPenalty(){
+  if(!NW.cfgOk||!NW.uid)return;
+  const {doc,getDoc}=NW.fb;
+  const s=await getDoc(doc(NW.db,'bc_users',NW.uid));
+  penaltyUntil=s.exists()?tsMs(s.data().penaltyUntil):0;
+  renderPenaltyBanner();
+}
+function penalActive(){return penaltyUntil>nowMs();}
+function renderPenaltyBanner(){
+  const el=$('penaltyBanner');
+  if(penalActive()){const left=Math.ceil((penaltyUntil-nowMs())/60000);
+    el.innerHTML=`<div class="penalty" style="margin-top:20px"><div class="pi">⛔</div><div><b>노쇼 패널티 적용 중</b><div class="pt">약 ${left}분 후 해제</div></div></div>`;}
+  else el.innerHTML='';
+  chkReady();
+}
+
+window.startCall=async()=>{
+  if(!NW.cfgOk){toast('Firebase config를 먼저 설정하세요.');return;}
+  if(penalActive()){toast('패널티 적용 중입니다.');return;}
+  if(!(sel.party&&sel.cats.length&&myLoc))return;
+  const {collection,addDoc,serverTimestamp,Timestamp}=NW.fb;
+  const expires=Timestamp.fromMillis(nowMs()+CALL_TTL*1000);
+  const ref=await addDoc(collection(NW.db,'bc_calls'),{
+    callerId:NW.uid, callerName:NW.user?.displayName||'', party:sel.party,
+    cats:sel.cats, cat:sel.cats[0],   // 다중 + 구버전 호환
+    lat:myLoc.lat, lng:myLoc.lng,
+    status:'searching', createdAt:serverTimestamp(), expiresAt:expires});
+  curCallId=ref.id; subShow('u-search');
+  $('resList').innerHTML=''; $('srCount').textContent='0';
+  listenResponses(); runCallTimer(nowMs()+CALL_TTL*1000);
+  autoRespondDemo(ref.id);   // 데모 매장 자동 응답
+};
+
+/* 데모 매장(ownerId='demo') 자동 응답 — 반경·업종 맞으면 1~3초 뒤 '가능/10분후' 삽입.
+   실제 매장 콘솔이 없어도 혼자 전체 흐름을 테스트할 수 있게 해줌. */
+async function autoRespondDemo(callId){
+  try{
+    const {collection,query,where,getDocs,doc,setDoc,serverTimestamp}=NW.fb;
+    const cats=sel.cats.slice();
+    // 'in' 쿼리는 최대 10개, 우리 cats는 최대 9개라 안전
+    const snap=await getDocs(query(collection(NW.db,'bc_biz'),where('cat','in',cats)));
+    const demos=snap.docs.map(d=>({id:d.id,...d.data()}))
+      .filter(b=>b.demo && b.approved!==false);
+    demos.forEach(b=>{
+      if(sel.party < (b.minParty||1)) return;
+      const dist=haversine(myLoc,{lat:b.lat,lng:b.lng});
+      if(dist>(b.radius||2000)) return;
+      const type=Math.random()<0.75?'ok':'soon';
+      const delay=800+Math.random()*2500;
+      setTimeout(async()=>{
+        if(curCallId!==callId) return;
+        await setDoc(doc(NW.db,'bc_calls',callId,'responses',b.id),{
+          bizId:b.id, bizName:b.name, cat:b.cat, type, dist, at:serverTimestamp()
+        }).catch(()=>{});
+      }, delay);
+    });
+  }catch(e){ console.warn('autoRespondDemo',e); }
+}
+function listenResponses(){
+  responses=[];
+  const {collection,onSnapshot}=NW.fb;
+  callUnsub=onSnapshot(collection(NW.db,'bc_calls',curCallId,'responses'),snap=>{
+    responses=snap.docs.map(d=>({id:d.id,...d.data()})).filter(r=>r.type!=='no');
+    $('srCount').textContent=responses.length; renderResponses();
+  });
+}
+let sortMode='dist';
+window.setSort=m=>{sortMode=m;
+  $('sort-dist').classList.toggle('on',m==='dist');
+  $('sort-wait').classList.toggle('on',m==='wait');
+  renderResponses();};
+function renderResponses(){
+  $('sortBar').classList.toggle('hide',responses.length===0);
+  let list=[...responses];
+  if(sortMode==='wait'){
+    // 빠른순: ok(0) → soon(1), 같은 그룹 내 거리순
+    list.sort((a,b)=>(a.type==='ok'?0:1)-(b.type==='ok'?0:1)||a.dist-b.dist);
+  }else{
+    list.sort((a,b)=>a.dist-b.dist); // 거리순
+  }
+  const okCnt=responses.filter(r=>r.type==='ok').length;
+  const soonCnt=responses.filter(r=>r.type==='soon').length;
+  let h=`<div class="grp-lb" style="color:var(--tx2);font-weight:600;font-size:12px;margin:14px 0 10px">
+    <span class="dot" style="background:var(--ok)"></span>지금 가능 ${okCnt}곳
+    <span class="dot" style="background:var(--soon);margin-left:10px"></span>10분 후 ${soonCnt}곳</div>`;
+  h+=list.map(card).join('');
+  $('resList').innerHTML=h;
+}
+function card(r){const c=catOf(r.cat||sel.cats[0]);
+  const badge=r.type==='ok'?'<span class="badge bd-ok">지금 가능</span>':'<span class="badge bd-soon">10분 후</span>';
+  return `<div class="bizcard" onclick="openDetail('${r.id}')"><div class="em">${c.e}</div>
+    <div class="info"><b>${r.bizName||'매장'}</b><div class="meta">${distLabel(r.dist)} · ${c.n}</div></div>${badge}</div>`;}
+
+let callEndAt=0;
+function runCallTimer(end){callEndAt=end;clearInterval(callTimer);
+  const tick=()=>{const left=(callEndAt-nowMs())/1000;$('srTimer').textContent=fmtT(left);
+    if(responses.length>0)$('srStatus').textContent='응답이 도착했어요. 매장을 선택하세요.';
+    if(left<=0){clearInterval(callTimer);endSearch();}};
+  tick();callTimer=setInterval(tick,250);}
+async function endSearch(){
+  if(!curCallId)return;
+  if(responses.length===0){
+    const {doc,updateDoc}=NW.fb;
+    await updateDoc(doc(NW.db,'bc_calls',curCallId),{status:'expired'}).catch(()=>{});
+    cleanupCall();toast('주변에서 응답이 없었어요. 다시 시도해 주세요.');subShow('u-home');
+  }
+}
+window.cancelCall=async()=>{
+  if(curCallId){const {doc,updateDoc}=NW.fb;await updateDoc(doc(NW.db,'bc_calls',curCallId),{status:'cancelled'}).catch(()=>{});}
+  cleanupCall();subShow('u-home');
+};
+function cleanupCall(){clearInterval(callTimer);if(callUnsub){callUnsub();callUnsub=null;}}
+
+let matchData=null, detailResp=null, detailBiz=null;
+
+window.openDetail=async(respId)=>{
+  const r=responses.find(x=>x.id===respId);if(!r)return;
+  detailResp=r;
+  const c=catOf(r.cat||sel.cats[0]);
+  // 매장 상세 문서 로드
+  let b={};
+  try{const {doc,getDoc}=NW.fb;const s=await getDoc(doc(NW.db,'bc_biz',r.id));if(s.exists())b=s.data();}catch(e){}
+  detailBiz=b;
+  subShow('u-detail');
+  // 사진
+  $('d-photo').innerHTML = b.photo
+    ? `<img src="${b.photo}" style="width:100%;height:170px;object-fit:cover;border-radius:var(--rad)" onerror="this.parentNode.innerHTML='${photoFallback(c)}'">`
+    : photoFallback(c);
+  $('d-name').textContent=r.bizName||'매장';
+  $('d-meta').textContent=`${c.e} ${c.n} · ${distLabel(r.dist)}`;
+  $('d-badge').innerHTML = r.type==='ok'?'<span class="badge bd-ok">지금 가능</span>':'<span class="badge bd-soon">10분 후</span>';
+  // 길찾기 링크
+  if(b.lat&&b.lng)$('d-route').href=NW.kakaoRoute(r.bizName,b.lat,b.lng);
+  else $('d-route').classList.add('hide');
+  // 메뉴
+  renderMenu(b.menu);
+  // 영업정보
+  renderInfo(b);
+  // 지도
+  drawMap(b);
+};
+function photoFallback(c){return `<div style="width:100%;height:170px;border-radius:var(--rad);background:var(--bg2);border:1px solid var(--bd);display:flex;align-items:center;justify-content:center;font-size:64px">${c.e}</div>`;}
+function renderMenu(menu){
+  if(!menu||!menu.length){$('d-menu').innerHTML='';return;}
+  $('d-menu').innerHTML=`<div class="h2" style="margin-top:24px">메뉴</div><div class="bizdetail">`+
+    menu.map(m=>`<div class="row"><span style="color:var(--tx)">${m.name}</span><b>${m.price?m.price.toLocaleString()+'원':'-'}</b></div>`).join('')+`</div>`;
+}
+function renderInfo(b){
+  const rows=[];
+  if(b.hours)rows.push(['영업시간',b.hours]);
+  if(b.phone)rows.push(['전화',b.phone]);
+  rows.push(['주차',b.parking?'가능':'불가']);
+  rows.push(['예약',b.reservation?'가능':'불가']);
+  $('d-info').innerHTML=`<div class="h2" style="margin-top:24px">영업정보</div><div class="bizdetail">`+
+    rows.map(r=>`<div class="row"><span>${r[0]}</span><b>${r[1]}</b></div>`).join('')+`</div>`;
+}
+async function drawMap(b){
+  const box=$('d-map');
+  if(!b.lat||!b.lng){box.innerHTML='<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--tx3);font-size:13px">위치 정보 없음</div>';return;}
+  try{
+    const kakao=await NW.loadKakao();
+    box.innerHTML='';
+    const center=new kakao.maps.LatLng(b.lat,b.lng);
+    const map=new kakao.maps.Map(box,{center,level:4});
+    new kakao.maps.Marker({map,position:center}); // 매장
+    if(myLoc){ // 내 위치
+      const me=new kakao.maps.LatLng(myLoc.lat,myLoc.lng);
+      const meMk=new kakao.maps.Marker({map,position:me,
+        image:new kakao.maps.MarkerImage('data:image/svg+xml;base64,'+btoa('<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22"><circle cx="11" cy="11" r="7" fill="#4D9FFF" stroke="#fff" stroke-width="3"/></svg>'),new kakao.maps.Size(22,22))});
+      const bounds=new kakao.maps.LatLngBounds();bounds.extend(center);bounds.extend(me);map.setBounds(bounds);
+    }
+  }catch(e){
+    box.innerHTML='<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--tx3);font-size:12px;text-align:center;padding:10px">지도를 불러올 수 없어요.<br>카카오 플랫폼에 도메인 등록이 필요할 수 있어요.</div>';
+  }
+}
+window.closeDetail=()=>{ subShow('u-search'); };
+
+let matching=false;
+window.confirmMatch=async()=>{
+  const r=detailResp;if(!r)return;
+  if(matching)return;                 // 이중 클릭 방지
+  matching=true;
+  const btn=document.querySelector('#u-detail .cta:not(.ghost)');
+  if(btn){btn.disabled=true;btn.textContent='확정 중…';}
+  try{
+    const {doc,getDoc,updateDoc,serverTimestamp,Timestamp}=NW.fb;
+    // 아직 searching인지 다시 확인 (만료/취소된 호출 방어)
+    const cs=await getDoc(doc(NW.db,'bc_calls',curCallId));
+    if(!cs.exists()||cs.data().status!=='searching'){
+      toast('이미 처리된 호출이에요. 다시 시도해 주세요.');
+      matching=false; cleanupCall(); subShow('u-home'); return;
+    }
+    const matchExp=Timestamp.fromMillis(nowMs()+MATCH_TTL*1000);
+    await updateDoc(doc(NW.db,'bc_calls',curCallId),{
+      status:'going', matchedBizId:r.id, matchedBizName:r.bizName,
+      matchedAt:serverTimestamp(), goingAt:serverTimestamp(), matchExpiresAt:matchExp});
+    matchData={callId:curCallId,...r,biz:detailBiz, party:sel.party};
+    cleanupCall();
+    await awardPoints(20, '호출 성사');
+    openMatched(nowMs()+MATCH_TTL*1000);
+  }catch(e){
+    console.error('[confirmMatch] 실패:',e);
+    toast('매칭 실패: '+(e.code||e.message||'알 수 없는 오류'));
+    if(btn){btn.disabled=false;btn.textContent='여기로 갈게요';}
+    matching=false;
+    return;
+  }finally{ matching=false; }
+};
+function openMatched(end){const r=matchData,c=catOf(r.cat||sel.cats[0]);
+  matchData._matchEnd=end;
+  matchBarState='going';
+  $('mName').textContent=r.bizName||'매장';
+  $('mSub').textContent=r.type==='ok'?'지금 바로 입장 가능합니다':'약 10분 후 입장 가능합니다';
+  const b=r.biz||{};
+  let routeRow='';
+  if(b.lat&&b.lng)routeRow=`<div class="row"><span>길찾기</span><b><a href="${NW.kakaoRoute(r.bizName,b.lat,b.lng)}" target="_blank" rel="noopener" style="color:var(--y)">카카오맵 열기 →</a></b></div>`;
+  $('mDetail').innerHTML=`<div class="row"><span>업종</span><b>${c.e} ${c.n}</b></div>
+    <div class="row"><span>인원</span><b>${r.party||sel.party}명</b></div>
+    <div class="row"><span>거리</span><b>${distLabel(r.dist||0)}</b></div>
+    ${b.phone?`<div class="row"><span>전화</span><b>${b.phone}</b></div>`:''}
+    <div class="row"><span>상태</span><b style="color:var(--ok)">입장 가능</b></div>
+    ${routeRow}`;
+  subShow('u-matched');clearInterval(matchTimer);
+  updateMatchBar();
+  const tick=()=>{
+    const left=(end-nowMs())/1000;
+    $('mTimer').textContent=fmtT(left);
+    // 매장이 도착 확인하면 done 상태로 → 자동 종료
+    if(left<=0){clearInterval(matchTimer);}
+  };
+  tick();matchTimer=setInterval(tick,500);
+  // 매장이 도착확인/노쇼 처리 감지
+  watchMatchStatus();
+}
+
+let matchStatusUnsub=null;
+function watchMatchStatus(){
+  if(!matchData?.callId) return;
+  if(matchStatusUnsub) matchStatusUnsub();
+  const {doc,onSnapshot}=NW.fb;
+  matchStatusUnsub=onSnapshot(doc(NW.db,'bc_calls',matchData.callId),s=>{
+    if(!s.exists())return;
+    const d=s.data();
+    if(d.status==='done'){
+      clearInterval(matchTimer);
+      hideMatchBar();
+      matchStatusUnsub();matchStatusUnsub=null;
+      saveHist('done');
+      toast('🎉 도착 완료! 즐거운 시간 되세요');
+      matchData=null;curCallId=null;
+      subShow('u-home');
+    }else if(d.status==='noshow'){
+      clearInterval(matchTimer);
+      hideMatchBar();
+      matchStatusUnsub();matchStatusUnsub=null;
+      onNoShowReceived();
+    }else if(d.status==='cancelled'){
+      clearInterval(matchTimer);
+      hideMatchBar();
+      matchStatusUnsub();matchStatusUnsub=null;
+      matchData=null;curCallId=null;
+      subShow('u-home');
+    }
+  });
+}
+async function onNoShowReceived(){
+  penaltyUntil=nowMs()+PENALTY*1000;
+  const {doc,setDoc,Timestamp}=NW.fb;
+  await setDoc(doc(NW.db,'bc_users',NW.uid),{penaltyUntil:Timestamp.fromMillis(penaltyUntil)},{merge:true}).catch(()=>{});
+  await saveHist('noshow');
+  matchData=null;curCallId=null;
+  toast('노쇼 처리됐어요. 30분 패널티가 적용됩니다.');
+  renderPenaltyBanner();subShow('u-home');
+}
+
+/* 매칭 진행 인디케이터 바 */
+let matchBarTimer=null, matchBarState=null;
+function updateMatchBar(){
+  const bar=$('matchBar'); if(!bar) return;
+  if(matchBarTimer){clearInterval(matchBarTimer);matchBarTimer=null;}
+  if(!curCallId || !matchData){bar.classList.add('hide'); return;}
+  const render=()=>{
+    let icon='🎯', label=matchData.bizName||'매칭 진행중', timeText='';
+    if(matchBarState==='accepted'){
+      const sec=parseInt($('acSec')?.textContent||0);
+      icon='🎉'; timeText=`갈게요? ${sec}초 남음`;
+    }else if(matchBarState==='going'){
+      const end=matchData._matchEnd||nowMs()+MATCH_TTL*1000;
+      const left=Math.max(0,Math.ceil((end-nowMs())/1000));
+      icon='🚶'; timeText=`${fmtT(left)} 내 도착`;
+    }
+    bar.innerHTML=`<span class="mb-i">${icon}</span><span class="mb-txt">${label} · ${timeText}</span><span class="mb-arrow">›</span>`;
+  };
+  bar.classList.remove('hide');
+  render(); matchBarTimer=setInterval(render,500);
+}
+function hideMatchBar(){
+  if(matchBarTimer){clearInterval(matchBarTimer);matchBarTimer=null;}
+  $('matchBar')?.classList.add('hide');
+  matchBarState=null;
+}
+window.reopenMatch=()=>{
+  if(matchBarState==='accepted') subShow('u-accepted');
+  else if(matchBarState==='going') subShow('u-matched');
+};
+/* 호출 종료 시 위치 정밀도 낮추기 (소수점 3자리 ≈ 100m) — 데이터 최소화 */
+async function coarsenCallLocation(callId){
+  if(!callId) return;
+  const {doc,getDoc,updateDoc}=NW.fb;
+  try{
+    const s=await getDoc(doc(NW.db,'bc_calls',callId));
+    if(!s.exists()) return;
+    const d=s.data();
+    if(d.lat==null||d.lng==null||d.locationCoarsened) return;
+    await updateDoc(doc(NW.db,'bc_calls',callId),{
+      lat:+(+d.lat).toFixed(3), lng:+(+d.lng).toFixed(3),
+      locationCoarsened:true
+    });
+  }catch(e){}
+}
+
+window.arrive=async()=>{clearInterval(matchTimer);
+  if(matchData){const {doc,updateDoc,serverTimestamp}=NW.fb;await updateDoc(doc(NW.db,'bc_calls',matchData.callId),{status:'done',arrivedAt:serverTimestamp()}).catch(()=>{});await coarsenCallLocation(matchData.callId);}
+  await saveHist('done');toast('도착 완료! 즐거운 시간 되세요 🎉');matchData=null;curCallId=null;subShow('u-home');};
+window.cancelMatch=async()=>{
+  if(!confirm('정말 매칭을 취소할까요? 매장에 자리를 비워주세요.'))return;
+  clearInterval(matchTimer);
+  if(matchStatusUnsub){matchStatusUnsub();matchStatusUnsub=null;}
+  if(matchData){const {doc,updateDoc}=NW.fb;await updateDoc(doc(NW.db,'bc_calls',matchData.callId),{status:'cancelled'}).catch(()=>{});await coarsenCallLocation(matchData.callId);}
+  await saveHist('cancelled');
+  hideMatchBar();
+  matchData=null;curCallId=null;subShow('u-home');
+};
+async function noShow(){
+  const {doc,updateDoc,setDoc,Timestamp}=NW.fb;
+  if(matchData){await updateDoc(doc(NW.db,'bc_calls',matchData.callId),{status:'noshow'}).catch(()=>{});await coarsenCallLocation(matchData.callId);}
+  penaltyUntil=nowMs()+PENALTY*1000;
+  await setDoc(doc(NW.db,'bc_users',NW.uid),{penaltyUntil:Timestamp.fromMillis(penaltyUntil)},{merge:true}).catch(()=>{});
+  await saveHist('noshow');matchData=null;curCallId=null;
+  toast('시간 초과 — 노쇼 처리되어 30분 패널티가 적용됐어요.');renderPenaltyBanner();subShow('u-home');}
+
+async function saveHist(status){if(!NW.uid)return;
+  const {collection,addDoc,serverTimestamp}=NW.fb;
+  await addDoc(collection(NW.db,'bc_users',NW.uid,'history'),{
+    bizId:matchData?.id||matchData?.matchedBizId||'',
+    bizName:matchData?.bizName||'-',cat:matchData?.cat||sel.cats?.[0]||'',party:matchData?.party||sel.party,status,at:serverTimestamp()}).catch(()=>{});
+  // 포인트 적립/차감
+  const POINT_TABLE = { matched:20, done:100, noshow:-200, cancelled:0 };
+  const REASON_TABLE = { matched:'호출 성사', done:'도착 완료', noshow:'노쇼', cancelled:'취소' };
+  const pts = POINT_TABLE[status];
+  if(pts) await awardPoints(pts, REASON_TABLE[status]);
+}
+
+/* 포인트 시스템 */
+let userPoints = 0;
+async function awardPoints(delta, reason){
+  if(!NW.uid || !delta) return;
+  const {doc,getDoc,setDoc,serverTimestamp,collection,addDoc,increment}=NW.fb;
+  try{
+    // 사용자 문서에 포인트 누적 (increment 사용)
+    const userRef=doc(NW.db,'bc_users',NW.uid);
+    const inc = NW.fb.increment ? NW.fb.increment(delta) : delta;
+    // increment가 없으면 트랜잭션 없이 단순 가산
+    if(NW.fb.increment){
+      await setDoc(userRef,{points:NW.fb.increment(delta)},{merge:true});
+    }else{
+      // 수동 가산 (경합 가능하지만 단일 사용자라 문제 없음)
+      const s=await getDoc(userRef);
+      const cur = s.exists() && s.data().points ? s.data().points : 0;
+      await setDoc(userRef,{points:cur+delta},{merge:true});
+    }
+    // 포인트 로그 (서브컬렉션)
+    await addDoc(collection(NW.db,'bc_users',NW.uid,'points'),{
+      delta, reason, balance:null, at:serverTimestamp()
+    }).catch(()=>{});
+    // 토스트로 알림
+    const emoji = delta>0 ? '💰' : '📉';
+    toast(`${emoji} ${reason} ${delta>0?'+':''}${delta}P`);
+  }catch(e){console.warn('[awardPoints] 실패:',e);}
+}
+
+async function loadPoints(){
+  if(!NW.uid) { userPoints=0; }
+  else try{
+    const {doc,getDoc}=NW.fb;
+    const s=await getDoc(doc(NW.db,'bc_users',NW.uid));
+    userPoints = (s.exists() && s.data().points) || 0;
+  }catch(e){userPoints=0;}
+  const el=$('homePoints'); if(el) el.textContent = userPoints.toLocaleString()+' P';
+}
+
+async function renderMy(){
+  renderPenaltyBannerMy();
+  await loadPoints();
+  await renderPointsBlock();
+  if(!NW.uid){$('myHist').innerHTML='<div class="muted">로컬 모드</div>';return;}
+  const {collection,getDocs,query,orderBy,limit,where}=NW.fb;
+  const snap=await getDocs(query(collection(NW.db,'bc_users',NW.uid,'history'),orderBy('at','desc'),limit(20)));
+  if(snap.empty){$('myHist').innerHTML='<div class="muted">아직 기록이 없어요.</div>';return;}
+  const ST={done:['입장완료','var(--okbg)','var(--ok)'],noshow:['노쇼','var(--nobg)','var(--no)'],cancelled:['취소','var(--bg3)','var(--tx2)']};
+  // 1) 내가 쓴 리뷰 미리 조회
+  const myReviewed=new Set();
+  try{
+    const rSnap=await getDocs(query(collection(NW.db,'bc_reviews'),where('uid','==',NW.uid)));
+    rSnap.forEach(d=>myReviewed.add(d.data().bizId));
+  }catch(e){}
+  $('myHist').innerHTML=snap.docs.map(d=>{const v=d.data();const s=ST[v.status]||ST.cancelled;const c=catOf(v.cat);
+    const t=v.at?.toDate?v.at.toDate():new Date();
+    const canReview = v.status==='done' && v.bizId;
+    const alreadyReviewed = canReview && myReviewed.has(v.bizId);
+    let actionBtn='';
+    if(canReview && !alreadyReviewed){
+      actionBtn = `<button class="chip" style="margin-top:6px;padding:5px 10px;font-size:11px;color:var(--y);border-color:var(--y)" onclick="openReviewFromHist('${v.bizId}','${(v.bizName||'').replace(/'/g,'')}')">⭐ 리뷰 쓰기 (+50P)</button>`;
+    }else if(alreadyReviewed){
+      actionBtn = `<span style="margin-top:6px;display:inline-block;font-size:11px;color:var(--tx3)">✓ 리뷰 작성됨</span>`;
+    }
+    return `<div class="hist-item"><div class="hi-l"><b>${c.e} ${v.bizName}</b>
+      <small>${v.party}명 · ${t.getMonth()+1}/${t.getDate()} ${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')}</small>
+      ${actionBtn}</div>
+      <span class="hs" style="background:${s[1]};color:${s[2]}">${s[0]}</span></div>`;}).join('');}
+
+async function renderPointsBlock(){
+  // 최근 10개 포인트 내역
+  let log=[];
+  if(NW.uid){
+    try{
+      const {collection,getDocs,query,orderBy,limit}=NW.fb;
+      const snap=await getDocs(query(collection(NW.db,'bc_users',NW.uid,'points'),orderBy('at','desc'),limit(10)));
+      log=snap.docs.map(d=>d.data());
+    }catch(e){}
+  }
+  const recent = log.map(p=>{
+    const t=p.at?.toDate?p.at.toDate():new Date();
+    const sign = p.delta>0?'+':'';
+    const color = p.delta>0?'var(--ok)':'var(--no)';
+    return `<div style="display:flex;justify-content:space-between;font-size:13px;padding:6px 0;border-bottom:1px solid var(--bd)">
+      <span style="color:var(--tx2)">${p.reason||''} · ${t.getMonth()+1}/${t.getDate()}</span>
+      <b style="color:${color}">${sign}${p.delta}P</b></div>`;
+  }).join('') || '<div class="muted" style="font-size:12px;padding:8px 0">아직 포인트 내역이 없어요.</div>';
+  $('myPoints').innerHTML=`
+    <div class="statbox" style="margin-top:0">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span style="color:var(--tx2);font-size:13px">🏆 보유 포인트</span>
+        <b style="color:var(--y);font-size:24px">${userPoints.toLocaleString()}<span style="font-size:14px;margin-left:2px">P</span></b>
+      </div>
+      <div class="muted" style="font-size:11px;margin-top:6px">도착완료 +100P · 리뷰작성 +50P · 호출성사 +20P · 노쇼 -200P</div>
+      <div style="margin-top:12px">${recent}</div>
+    </div>`;
+}
+
+function renderPenaltyBannerMy(){const el=$('myStatus');
+  if(penalActive()){const left=Math.ceil((penaltyUntil-nowMs())/60000);
+    el.innerHTML=`<div class="penalty"><div class="pi">⛔</div><div><b>노쇼 패널티 적용 중</b><div class="pt">약 ${left}분 후 해제</div></div></div>`;}
+  else el.innerHTML=`<div class="statbox"><b style="color:var(--ok)">✓ 정상 이용 가능</b><div class="muted" style="margin-top:6px">패널티 없음</div></div>`;}
+
+/* MY 페이지에서 리뷰 작성 — 핫플 상세 화면으로 점프 */
+window.openReviewFromHist=async(bizId,bizName)=>{
+  if(!bizId){toast('매장 정보가 없어서 리뷰를 쓸 수 없어요');return;}
+  try{
+    const {doc,getDoc}=NW.fb;
+    const s=await getDoc(doc(NW.db,'bc_biz',bizId));
+    if(!s.exists()){toast('매장을 찾을 수 없어요. 폐업했거나 삭제됐을 수 있어요.');return;}
+    showHotDetail({id:bizId,...s.data()});
+    // 리뷰 섹션으로 자동 스크롤
+    setTimeout(()=>{
+      const el=$('hd-myreview'); if(el) el.scrollIntoView({behavior:'smooth',block:'center'});
+    }, 300);
+  }catch(e){toast('실패: '+e.message);}
+};
+function renderPenaltyBannerMy(){const el=$('myStatus');
+  if(penalActive()){const left=Math.ceil((penaltyUntil-nowMs())/60000);
+    el.innerHTML=`<div class="penalty"><div class="pi">⛔</div><div><b>노쇼 패널티 적용 중</b><div class="pt">약 ${left}분 후 해제</div></div></div>`;}
+  else el.innerHTML=`<div class="statbox"><b style="color:var(--ok)">✓ 정상 이용 가능</b><div class="muted" style="margin-top:6px">패널티 없음</div></div>`;}
+/* ── 매장 파트너 ── */
+let pSel={cat:null,rad:1000}, pLoc=null;
+async function renderPartner(){
+  const body=$('partnerBody');
+  const biz=await NW.myBusiness();
+  if(biz && biz.approved){
+    body.innerHTML=`<div class="statbox" style="margin-top:20px"><b style="color:var(--ok)">✓ 승인된 파트너</b>
+      <div class="muted" style="margin-top:6px">${biz.name}</div></div>
+      <button class="cta" style="margin-top:16px" onclick="location.href='merchant.html'">매장 콘솔 열기 →</button>`;
+    return;
+  }
+  if(biz && !biz.approved){
+    body.innerHTML=`<div class="penalty" style="border-color:var(--soon);background:var(--soonbg);margin-top:20px">
+      <div class="pi">🕒</div><div><b style="color:var(--soon)">승인 대기 중</b>
+      <div class="pt" style="color:var(--soon)">"${biz.name}" · 관리자 검토중</div></div></div>
+      <div class="demo-hint">관리자가 승인하면 다음 로그인 때 매장 콘솔로 바로 연결돼요.</div>`;
+    return;
+  }
+  body.innerHTML=`
+    <div class="field"><div class="field-lb">매장 이름</div><input class="inp" id="pName" placeholder="예) 강남 라운지펍"></div>
+    <div class="field"><div class="field-lb">업종</div><div class="chips" id="pCat"></div></div>
+    <div class="field"><div class="field-lb">수신 반경</div><div class="chips" id="pRad"></div></div>
+    <div class="field"><div class="field-lb">메뉴·가격 <span style="color:var(--tx3);font-weight:500">(한 줄에 하나: 이름,가격)</span></div>
+      <textarea class="inp" id="pMenu" rows="3" placeholder="생맥주 500cc,5000&#10;모둠 안주,23000"></textarea></div>
+    <div class="field"><div class="field-lb">영업시간 / 전화 <span style="color:var(--tx3);font-weight:500">(선택)</span></div>
+      <input class="inp" id="pHours" placeholder="매일 17:00 – 02:00" style="margin-bottom:8px">
+      <input class="inp" id="pPhone" placeholder="02-000-0000"></div>
+    <div class="locbox"><div class="pin">📍</div>
+      <div class="txt"><b id="pLocName">위치 확인 중…</b><small id="pLocCoord">--</small></div>
+      <button onclick="pGetLoc()">새로고침</button></div>
+    <button class="cta ghost" style="margin-top:10px" onclick="pSearchAddr()">🔎 주소로 위치 찾기</button>
+    <div id="pAddr" class="muted" style="font-size:12px;margin-top:6px"></div>
+    <div id="pPickWrap" class="hide">
+      <div class="muted" style="font-size:13px;margin-top:8px">지도에서 <b>매장 위치를 탭</b>하세요.</div>
+      <div id="pPick" style="width:100%;height:200px;border-radius:var(--rad);margin-top:8px;background:var(--bg2);border:1px solid var(--bd);overflow:hidden"></div></div>
+    <button class="cta" id="pBtn" onclick="submitPartner()" disabled>매장 파트너 신청하기</button>
+    <div class="demo-hint">신청하면 <b>승인 대기</b> 상태가 되고, 관리자(BIMILCALL 운영팀) 승인 후 매장 콘솔이 열려요.</div>`;
+  $('pCat').innerHTML=NW.CATS.map(c=>`<button class="chip" data-c="${c.k}" onclick="pPickCat('${c.k}')">${c.e} ${c.n}</button>`).join('');
+  $('pRad').innerHTML=NW.RADII.map(r=>`<button class="chip ${r===1000?'on':''}" data-r="${r}" onclick="pPickRad(${r})">${distLabel(r)}</button>`).join('');
+  $('pName').addEventListener('input',pChk);
+  pGetLoc();
+}
+window.pPickCat=k=>{pSel.cat=k;document.querySelectorAll('#pCat .chip').forEach(b=>b.classList.toggle('on',b.dataset.c===k));pChk();};
+window.pPickRad=r=>{pSel.rad=r;document.querySelectorAll('#pRad .chip').forEach(b=>b.classList.toggle('on',+b.dataset.r===r));};
+window.pGetLoc=async()=>{$('pLocName').textContent='위치 확인 중…';$('pLocCoord').textContent='--';
+  try{ const l=await NW.getGPS(); $('pPickWrap').classList.add('hide'); pApplyLoc(l); }
+  catch(e){ $('pLocName').textContent='위치를 잡지 못했어요'; $('pLocCoord').textContent='지도에서 선택'; pShowPicker(); }
+};
+function pApplyLoc(l){pLoc=l;$('pLocName').textContent=l.name||'선택한 위치';$('pLocCoord').textContent=l.lat.toFixed(4)+', '+l.lng.toFixed(4);pChk();}
+let pPicker=null;
+async function pShowPicker(){
+  $('pPickWrap').classList.remove('hide');
+  if(pPicker)return;
+  pPicker=await NW.locationPicker('pPick', pLoc||myLoc||NW.FALLBACK, (lat,lng)=>pApplyLoc({lat,lng,name:'지도에서 선택한 위치'}));
+}
+window.pSearchAddr=()=>{
+  NW.searchAddress(r=>{
+    $('pAddr').textContent='📍 '+r.address;
+    if(r.lat&&r.lng) pApplyLoc({lat:r.lat,lng:r.lng,name:r.address});
+    else pShowPicker();
+  });
+};
+function pChk(){const b=$('pBtn');if(b)b.disabled=!($('pName').value.trim()&&pSel.cat&&pLoc);}
+window.submitPartner=async()=>{
+  const {collection,addDoc,serverTimestamp}=NW.fb;
+  const menu=$('pMenu').value.split('\n').map(l=>l.trim()).filter(Boolean).map(l=>{const i=l.lastIndexOf(',');if(i<0)return{name:l,price:0};return{name:l.slice(0,i).trim(),price:parseInt(l.slice(i+1).replace(/[^0-9]/g,''))||0};});
+  await addDoc(collection(NW.db,'bc_biz'),{
+    name:$('pName').value.trim(),cat:pSel.cat,radius:pSel.rad,lat:pLoc.lat,lng:pLoc.lng,status:'open',
+    approved:false,ownerId:NW.uid,ownerName:NW.user?.displayName||'',ownerEmail:NW.user?.email||'',
+    menu,hours:$('pHours').value.trim(),phone:$('pPhone').value.trim(),parking:false,reservation:true,
+    photo:'',createdAt:serverTimestamp()});
+  toast('매장 신청 완료! 관리자 승인을 기다려 주세요.');
+  renderPartner();
+};
+
+window.addEventListener('beforeunload',()=>{if(callUnsub)callUnsub();});
+
+/* ── 개인정보 관리 (D: 다운로드, B: 탈퇴/삭제) ── */
+window.downloadMyData=async()=>{
+  if(!NW.uid){toast('로그인 필요');return;}
+  toast('내 데이터를 수집하는 중…');
+  const {doc,getDoc,getDocs,collection,query,where,orderBy}=NW.fb;
+  try{
+    const u=await getDoc(doc(NW.db,'bc_users',NW.uid));
+    const hist=await getDocs(query(collection(NW.db,'bc_users',NW.uid,'history'),orderBy('at','desc')));
+    const calls=await getDocs(query(collection(NW.db,'bc_calls'),where('callerId','==',NW.uid)));
+    const data={
+      exportedAt:new Date().toISOString(),
+      profile:u.exists()?u.data():null,
+      callHistory:hist.docs.map(d=>({id:d.id,...d.data()})),
+      activeCalls:calls.docs.map(d=>({id:d.id,...d.data()})),
+      account:{uid:NW.uid,email:NW.user?.email,displayName:NW.user?.displayName}
+    };
+    // Firestore Timestamp는 JSON 직렬화 안되므로 변환
+    const json=JSON.stringify(data,(k,v)=>v&&v.toMillis?new Date(v.toMillis()).toISOString():v,2);
+    const blob=new Blob([json],{type:'application/json'});
+    const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+    a.download=`bimilcall-mydata-${Date.now()}.json`;a.click();
+    URL.revokeObjectURL(a.href);
+    toast('내 데이터를 다운로드했어요');
+  }catch(e){toast('내려받기 실패: '+e.message);}
+};
+
+window.clearMyHistory=async()=>{
+  if(!confirm('호출 기록을 모두 삭제할까요?\n(계정은 유지됩니다. 되돌릴 수 없어요.)'))return;
+  const {collection,getDocs,deleteDoc,doc}=NW.fb;
+  try{
+    const snap=await getDocs(collection(NW.db,'bc_users',NW.uid,'history'));
+    let n=0;
+    for(const d of snap.docs){ await deleteDoc(doc(NW.db,'bc_users',NW.uid,'history',d.id)); n++; }
+    toast(`호출 기록 ${n}건 삭제 완료`);
+    renderMy();
+  }catch(e){toast('삭제 실패: '+e.message);}
+};
+
+window.deleteAccount=async()=>{
+  if(!confirm('정말 회원 탈퇴할까요?\n\n• 프로필, 호출 기록, 패널티 정보가 모두 영구 삭제됩니다\n• 진행 중인 호출이 있으면 자동 취소됩니다\n• 되돌릴 수 없습니다\n\n계속하려면 확인을 누르세요.'))return;
+  if(!confirm('마지막 확인 — 정말로 모든 데이터를 삭제하시겠어요?'))return;
+  const {doc,deleteDoc,getDocs,collection,query,where,updateDoc}=NW.fb;
+  toast('데이터를 삭제하는 중…');
+  try{
+    // 1) 진행 중인 호출 취소
+    const active=await getDocs(query(collection(NW.db,'bc_calls'),where('callerId','==',NW.uid)));
+    for(const d of active.docs){
+      const s=d.data().status;
+      if(s==='searching'||s==='matched'){
+        await updateDoc(d.ref,{status:'cancelled'}).catch(()=>{});
+      }
+    }
+    // 2) history 서브컬렉션 삭제
+    const hist=await getDocs(collection(NW.db,'bc_users',NW.uid,'history'));
+    for(const d of hist.docs){ await deleteDoc(d.ref).catch(()=>{}); }
+    // 3) 프로필 문서 삭제
+    await deleteDoc(doc(NW.db,'bc_users',NW.uid)).catch(()=>{});
+    // 4) Firebase Auth 계정 삭제 시도 (재인증 필요할 수 있음)
+    try{
+      if(NW.user && NW.user.delete) await NW.user.delete();
+    }catch(authErr){
+      // 재인증 필요 — 로그아웃 후 안내
+      console.warn('auth delete needs re-auth',authErr);
+    }
+    toast('회원 탈퇴 완료. 안녕히 가세요.');
+    setTimeout(()=>{ NW.logout(); }, 1500);
+  }catch(e){toast('탈퇴 실패: '+e.message);}
+};
+
+
+init();
+</script>
+</body>
+</html>

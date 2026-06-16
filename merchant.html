@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BIMILCALL · 매장 콘솔</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="bc.css">
+</head>
+<body>
+<div id="cfgWarn" class="hide"></div>
+
+<!-- 로딩 -->
+<div id="m-loading" class="scr on"><div class="standby" style="padding:80px 20px"><div class="big">⏳</div><p>매장 정보를 확인하는 중…</p></div></div>
+
+<!-- 승인 대기 -->
+<div id="m-pending" class="scr">
+  <div class="setup" style="text-align:center;padding-top:80px">
+    <div style="font-size:64px">🕒</div>
+    <div class="brand" style="font-size:28px;margin-top:16px">승인 대기 중</div>
+    <div class="muted" style="margin-top:12px" id="pendName">매장 신청이 접수되었어요.</div>
+    <div class="muted" style="margin-top:6px">관리자 승인 후 호출을 받을 수 있어요.</div>
+    <button class="cta ghost" style="margin-top:32px" onclick="location.reload()">새로고침</button>
+    <button class="cta ghost" style="margin-top:10px" onclick="NW.logout()">로그아웃</button>
+  </div>
+</div>
+
+<!-- 매장 신청 -->
+<!-- (매장 신청은 사용자앱 '파트너' 탭에서 진행 — m-setup 폼 제거됨) -->
+
+
+<!-- 운영 콘솔 -->
+<div id="m-console" class="scr">
+  <div class="tab-top">
+    <div class="lg">BIMIL<span class="w">CALL</span> <span style="font-size:13px;color:var(--tx3);font-weight:700">매장 콘솔</span></div>
+    <div style="display:flex;align-items:center;gap:16px">
+      <div class="biz"><div><div class="nm" id="cBizName">·</div><div class="ct" id="cBizCat">·</div></div></div>
+      <button class="adm-btn" style="padding:8px 12px;font-size:12px" onclick="openStats()">📊 통계</button>
+      <button class="adm-btn" style="padding:8px 12px;font-size:12px" onclick="openEdit()">⚙ 매장 수정</button>
+      <button class="adm-btn" id="alarmBtn" style="padding:8px 12px;font-size:12px" onclick="toggleAlarm()">🔔 알람 OFF</button>
+      <button class="adm-btn hide" id="memBtn" style="padding:8px 12px;font-size:12px" onclick="openMembers()">👥 직원</button>
+      <div id="acct"></div>
+    </div>
+  </div>
+  <div class="tab-wrap">
+    <div class="locbox" style="margin-top:0;margin-bottom:18px"><div class="pin">📍</div>
+      <div class="txt"><b>현재 매장 위치</b><small id="cBizPin2">·</small></div>
+      <button onclick="openEdit()">위치 수정</button></div>
+    <div class="status-row">
+      <button class="status-btn s-open on" id="st-open" onclick="setBizStatus('open')"><span class="si">🟢</span>영업중</button>
+      <button class="status-btn s-busy" id="st-busy" onclick="setBizStatus('busy')"><span class="si">🟡</span>혼잡</button>
+      <button class="status-btn s-close" id="st-close" onclick="setBizStatus('closed')"><span class="si">🔴</span>마감</button>
+    </div>
+    <!-- 오늘 카운터 -->
+    <div class="tab-stats">
+      <div class="tab-stat"><div class="n mono" id="tsCalls">0</div><div class="l">오늘 받은 호출</div></div>
+      <div class="tab-stat"><div class="n mono" id="tsResp">0</div><div class="l">응답</div></div>
+      <div class="tab-stat"><div class="n mono" id="tsMatch">0</div><div class="l">성사</div></div>
+    </div>
+    <div class="h2" style="font-size:17px">실시간 호출</div>
+    <div id="callsArea">
+      <div class="standby"><div class="big">📡</div><h3>호출 대기 중</h3><p>반경 안에서 호출이 오면 즉시 표시됩니다.</p><div class="pin" id="cBizPin">·</div></div>
+    </div>
+    <div class="h2" style="font-size:17px;margin-top:32px">🎯 도착 예정 손님 <span id="arrCnt" style="color:var(--tx3);font-size:13px;font-weight:600"></span></div>
+    <div id="arrArea"><div class="standby" style="padding:24px"><p>아직 확정된 손님이 없습니다.</p></div></div>
+  </div>
+</div>
+
+<!-- 매장 정보 수정 -->
+<div id="m-edit" class="scr">
+  <div class="setup">
+    <div style="margin-bottom:8px"><button class="back" onclick="subShow('m-console')" style="background:none;color:var(--tx2);font-weight:700">← 콘솔로</button></div>
+    <div class="brand" style="font-size:30px">매장 정보 수정</div>
+    <div class="field"><div class="field-lb">매장 이름</div><input class="inp" id="eName"></div>
+    <div class="field"><div class="field-lb">업종</div><div class="chips" id="eCat"></div></div>
+    <div class="field"><div class="field-lb">수신 반경</div><div class="chips" id="eRad"></div></div>
+    <div class="field"><div class="field-lb">최소 수용 인원 <span style="color:var(--tx3);font-weight:500">(이 인원 미만 호출은 안 받음)</span></div>
+      <div class="chips" id="eMinParty"></div></div>
+    <div class="field"><div class="field-lb">위치 — 주소로 찾기 또는 지도에서 선택</div>
+      <button class="cta ghost" style="margin-top:0" onclick="eSearchAddr()">🔎 주소 검색</button>
+      <div id="eAddr" class="muted" style="font-size:12px;margin-top:8px"></div>
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <input class="inp" id="eLat" placeholder="위도" style="margin:0">
+        <input class="inp" id="eLng" placeholder="경도" style="margin:0"></div>
+      <button class="cta ghost" style="margin-top:8px" onclick="eUseGps()">📍 현재 위치(GPS)로 설정</button>
+      <div id="eMap" style="width:100%;height:200px;border-radius:var(--rad);margin-top:10px;background:var(--bg2);border:1px solid var(--bd);overflow:hidden"></div>
+      <div class="muted" style="font-size:12px;margin-top:6px">지도를 탭하면 그 위치로 매장이 이동해요.</div></div>
+    <div class="field"><div class="field-lb">사진 URL</div><input class="inp" id="ePhoto" placeholder="https://...jpg"></div>
+    <div class="field"><div class="field-lb">홈페이지 URL <span style="color:var(--tx3);font-weight:500">(선택)</span></div>
+      <input class="inp" id="eWebsite" placeholder="https://..."></div>
+    <div class="field"><div class="field-lb">메뉴·가격 <span style="color:var(--tx3);font-weight:500">(한 줄에 하나: 이름,가격)</span></div>
+      <textarea class="inp" id="eMenu" rows="3"></textarea></div>
+    <div class="field"><div class="field-lb">영업시간 / 전화</div>
+      <input class="inp" id="eHours" placeholder="매일 17:00 – 02:00" style="margin-bottom:8px">
+      <input class="inp" id="ePhone" placeholder="02-000-0000"></div>
+    <div class="field"><div class="field-lb">편의</div>
+      <div class="chips">
+        <button class="chip" id="eParking" onclick="this.classList.toggle('on')">🅿 주차</button>
+        <button class="chip" id="eReserv" onclick="this.classList.toggle('on')">📅 예약</button></div></div>
+    <button class="cta" onclick="saveEdit()">저장하기</button>
+    <button class="cta ghost" style="margin-top:10px" onclick="subShow('m-console')">취소</button>
+  </div>
+</div>
+
+<!-- 직원 관리 -->
+<div id="m-members" class="scr" style="position:relative;z-index:50;background:var(--bg);min-height:100vh">
+  <div class="setup">
+    <div style="margin-bottom:8px"><button class="back" onclick="subShow('m-console')" style="background:none;color:var(--tx2);font-weight:700">← 콘솔로</button></div>
+    <div class="brand" style="font-size:30px">직원 관리</div>
+    <div class="brand-sub" style="text-align:left;margin-top:8px">직원의 <b>구글 이메일</b>을 추가하면 같은 매장 콘솔을 공유할 수 있어요.</div>
+    <div class="field"><div class="field-lb">직원 이메일 추가</div>
+      <input class="inp" id="memEmail" type="email" autocomplete="email" placeholder="staff@gmail.com" style="margin-bottom:8px;position:relative;z-index:51" onkeydown="if(event.key==='Enter')addMember()">
+      <button class="cta" style="margin:0;padding:14px" onclick="addMember()">+ 추가</button>
+      <div class="muted" style="font-size:12px;margin-top:8px">반드시 그 직원이 <b>구글 로그인에 사용하는</b> 정확한 이메일이어야 해요.</div></div>
+    <div class="field"><div class="field-lb">현재 멤버</div><div id="memList"></div></div>
+  </div>
+</div>
+<div id="m-stats" class="scr" style="position:relative;z-index:50;background:var(--bg);min-height:100vh">
+  <div class="setup">
+    <div style="margin-bottom:8px"><button class="back" onclick="subShow('m-console')" style="background:none;color:var(--tx2);font-weight:700">← 콘솔로</button></div>
+    <div class="brand" style="font-size:30px">📊 매장 통계</div>
+    <div class="brand-sub" style="text-align:left;margin-top:8px" id="stPeriod">--</div>
+
+    <div class="h2" style="font-size:17px;margin-top:30px">이번 달 (<span id="stMonthLb">--</span>)</div>
+    <div class="tab-stats">
+      <div class="tab-stat"><div class="n mono" id="mCalls">0</div><div class="l">호출 수신</div></div>
+      <div class="tab-stat"><div class="n mono" id="mResp">0</div><div class="l">응답</div></div>
+      <div class="tab-stat"><div class="n mono" id="mMatch">0</div><div class="l">매칭 성사</div></div>
+    </div>
+    <div class="tab-stats" style="margin-top:10px">
+      <div class="tab-stat"><div class="n mono" id="mDone" style="color:var(--ok)">0</div><div class="l">도착 완료</div></div>
+      <div class="tab-stat"><div class="n mono" id="mNoshow" style="color:var(--no)">0</div><div class="l">노쇼</div></div>
+      <div class="tab-stat"><div class="n mono" id="mNoshowRate">0%</div><div class="l">노쇼율</div></div>
+    </div>
+
+    <div class="h2" style="font-size:17px;margin-top:30px">전체 누적</div>
+    <div class="tab-stats">
+      <div class="tab-stat"><div class="n mono" id="aMatch">0</div><div class="l">매칭 성사</div></div>
+      <div class="tab-stat"><div class="n mono" id="aDone" style="color:var(--ok)">0</div><div class="l">도착 완료</div></div>
+      <div class="tab-stat"><div class="n mono" id="aNoshow" style="color:var(--no)">0</div><div class="l">노쇼</div></div>
+    </div>
+
+    <div class="h2" style="font-size:17px;margin-top:30px">평가</div>
+    <div class="statbox" style="margin-top:0">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span style="color:var(--tx2)">평균 별점</span>
+        <b style="color:var(--y);font-size:20px" id="stRating">--</b>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px">
+        <span style="color:var(--tx2)">리뷰 수</span>
+        <b id="stRatingCount">0</b>
+      </div>
+    </div>
+
+    <div class="muted" style="font-size:12px;margin-top:18px;text-align:center">매장 콘솔이 열려있는 동안 실시간으로 누적됩니다.</div>
+  </div>
+</div>
+<div id="toast"></div>
+
+<script src="bc-core.js"></script>
+<script>
+const {$,toast,fmtT,haversine,distLabel,nowMs,tsMs,catOf,CATS,RADII}=NW;
+let bizSel={cat:null,rad:1000}, bizLoc=null, myBizId=null, myBiz=null;
+let callsUnsub=null;
+const callTimers={}, respondedCalls=new Set();
+const stats={calls:0,resp:0,match:0,_seen:new Set()};
+
+function subShow(id){document.querySelectorAll('body>.scr').forEach(s=>s.classList.remove('on'));$(id).classList.add('on');window.scrollTo(0,0);}
+
+(function init(){
+  NW.onAuth(async u=>{
+    if(!u){ location.href='index.html'; return; }
+    const biz=await NW.myBusiness();
+    if(NW.isAdmin(u)){
+      if(biz){ myBizId=biz.id; myBiz={...biz}; openConsole(); }
+      else { subShow('m-pending'); $('pendName').textContent='관리자 계정 — 등록된 매장이 없어요. (관리자 페이지에서 데모 매장 생성 가능)'; }
+      return;
+    }
+    if(biz && biz.approved){
+      myBizId=biz.id; myBiz={...biz};
+      openConsole();
+    }else if(biz && !biz.approved){
+      $('pendName').textContent=`"${biz.name}" 신청이 접수되었어요.`;
+      subShow('m-pending');
+    }else{
+      location.replace('user.html');
+    }
+  });
+})();
+
+function openConsole(){
+  subShow('m-console');
+  NW.mountAccount('acct');
+  $('cBizName').textContent=myBiz.name;
+  $('cBizCat').textContent=catOf(myBiz.cat).e+' '+catOf(myBiz.cat).n+' · 반경 '+distLabel(myBiz.radius);
+  const pin=$('cBizPin'); if(pin) pin.textContent=myBiz.lat.toFixed(4)+', '+myBiz.lng.toFixed(4);
+  const p2=$('cBizPin2'); if(p2) p2.textContent=myBiz.lat.toFixed(5)+', '+myBiz.lng.toFixed(5)+' · 반경 '+distLabel(myBiz.radius);
+  // 직원 관리 버튼은 오너에게만 보임
+  const memBtn=$('memBtn');
+  if(memBtn) memBtn.classList.toggle('hide', myBiz.ownerId!==NW.uid);
+  setBizStatus(myBiz.status,true); listenCalls(); listenArrivals();
+}
+
+/* ── 직원(멤버) 관리 ── 오너만 */
+window.openMembers=()=>{
+  if(myBiz.ownerId!==NW.uid){ toast('오너만 직원을 관리할 수 있어요'); return; }
+  subShow('m-members'); renderMembers();
+};
+function renderMembers(){
+  const list=myBiz.memberEmails||[];
+  if(!list.length){$('memList').innerHTML='<div class="muted" style="font-size:13px">아직 등록된 직원이 없어요.</div>';return;}
+  $('memList').innerHTML=list.map(em=>`
+    <div class="hist-item"><div class="hi-l"><b>${em}</b></div>
+    <button class="adm-btn danger" style="padding:6px 10px" onclick="removeMember('${em}')">제거</button></div>`).join('');
+}
+window.addMember=async()=>{
+  const em=$('memEmail').value.trim().toLowerCase();
+  if(!em||!em.includes('@')||!em.includes('.')){toast('올바른 이메일을 입력하세요 (예: staff@gmail.com)');return;}
+  if(em===NW.user?.email){toast('오너 본인은 추가할 필요 없어요');return;}
+  if(myBiz.ownerId!==NW.uid){toast('오너만 직원을 추가할 수 있어요');return;}
+  const list=myBiz.memberEmails||[];
+  if(list.includes(em)){toast('이미 추가된 이메일이에요');return;}
+  const next=[...list,em];
+  const {doc,updateDoc}=NW.fb;
+  try{
+    await updateDoc(doc(NW.db,'bc_biz',myBizId),{memberEmails:next});
+    myBiz.memberEmails=next; $('memEmail').value=''; toast('✓ 직원 추가 완료'); renderMembers();
+  }catch(e){
+    console.error('직원 추가 실패:',e);
+    toast('실패: '+(e.code||e.message||'알 수 없는 오류'));
+  }
+};
+window.removeMember=async(em)=>{
+  if(!confirm(`"${em}" 직원을 제거할까요?`))return;
+  const next=(myBiz.memberEmails||[]).filter(x=>x!==em);
+  const {doc,updateDoc}=NW.fb;
+  try{
+    await updateDoc(doc(NW.db,'bc_biz',myBizId),{memberEmails:next});
+    myBiz.memberEmails=next; toast('제거 완료'); renderMembers();
+  }catch(e){toast('실패: '+e.message);}
+};
+
+/* ── 매장 정보 수정 ── */
+let eSel={cat:null,rad:1000}, eMap=null, eMarker=null;
+window.openEdit=()=>{
+  subShow('m-edit');
+  eSel={cat:myBiz.cat, rad:myBiz.radius||1000, minParty:myBiz.minParty||1};
+  $('eName').value=myBiz.name||'';
+  $('eLat').value=(+myBiz.lat).toFixed(6);
+  $('eLng').value=(+myBiz.lng).toFixed(6);
+  $('ePhoto').value=myBiz.photo||'';
+  $('eWebsite').value=myBiz.website||'';
+  $('eMenu').value=(myBiz.menu||[]).map(m=>`${m.name},${m.price||0}`).join('\n');
+  $('eHours').value=myBiz.hours||'';
+  $('ePhone').value=myBiz.phone||'';
+  $('eParking').classList.toggle('on',!!myBiz.parking);
+  $('eReserv').classList.toggle('on',!!myBiz.reservation);
+  $('eCat').innerHTML=CATS.map(c=>`<button class="chip ${c.k===eSel.cat?'on':''}" data-c="${c.k}" onclick="ePickCat('${c.k}')">${c.e} ${c.n}</button>`).join('');
+  $('eRad').innerHTML=RADII.map(r=>`<button class="chip ${r===eSel.rad?'on':''}" data-r="${r}" onclick="ePickRad(${r})">${distLabel(r)}</button>`).join('');
+  $('eMinParty').innerHTML=[1,2,3,4].map(n=>`<button class="chip ${n===eSel.minParty?'on':''}" data-m="${n}" onclick="ePickMin(${n})">${n}명 가능${n===4?'+':''}</button>`).join('');
+  drawEditMap();
+};
+window.ePickCat=k=>{eSel.cat=k;document.querySelectorAll('#eCat .chip').forEach(b=>b.classList.toggle('on',b.dataset.c===k));};
+window.ePickRad=r=>{eSel.rad=r;document.querySelectorAll('#eRad .chip').forEach(b=>b.classList.toggle('on',+b.dataset.r===r));};
+window.ePickMin=n=>{eSel.minParty=n;document.querySelectorAll('#eMinParty .chip').forEach(b=>b.classList.toggle('on',+b.dataset.m===n));};
+window.eUseGps=()=>{
+  if(!navigator.geolocation){toast('GPS 불가');return;}
+  toast('현재 위치 확인 중…');
+  navigator.geolocation.getCurrentPosition(p=>{
+    $('eLat').value=p.coords.latitude.toFixed(6);$('eLng').value=p.coords.longitude.toFixed(6);
+    toast('현재 위치로 설정됨');drawEditMap();
+  },()=>toast('위치 권한 거부됨'),{enableHighAccuracy:true,timeout:8000});
+};
+window.eSearchAddr=()=>{
+  NW.searchAddress(r=>{
+    $('eAddr').textContent='📍 '+r.address;
+    if(r.lat&&r.lng){$('eLat').value=r.lat.toFixed(6);$('eLng').value=r.lng.toFixed(6);drawEditMap();toast('주소 위치로 설정됨');}
+  });
+};
+async function drawEditMap(){
+  const box=$('eMap'); const lat=parseFloat($('eLat').value), lng=parseFloat($('eLng').value);
+  if(isNaN(lat)||isNaN(lng)){box.innerHTML='<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--tx3);font-size:13px">좌표를 입력하세요</div>';return;}
+  try{
+    const kakao=await NW.loadKakao();
+    box.innerHTML='';
+    const center=new kakao.maps.LatLng(lat,lng);
+    eMap=new kakao.maps.Map(box,{center,level:4});
+    eMarker=new kakao.maps.Marker({map:eMap,position:center,draggable:true});
+    // 지도 클릭 → 마커 이동 + 좌표 갱신
+    kakao.maps.event.addListener(eMap,'click',e=>{
+      const ll=e.latLng;eMarker.setPosition(ll);
+      $('eLat').value=ll.getLat().toFixed(6);$('eLng').value=ll.getLng().toFixed(6);
+    });
+    kakao.maps.event.addListener(eMarker,'dragend',()=>{
+      const ll=eMarker.getPosition();$('eLat').value=ll.getLat().toFixed(6);$('eLng').value=ll.getLng().toFixed(6);
+    });
+  }catch(e){ box.innerHTML='<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--tx3);font-size:12px;text-align:center;padding:10px">지도 로드 실패 — 좌표는 직접 입력 가능</div>'; }
+}
+window.saveEdit=async()=>{
+  const lat=parseFloat($('eLat').value), lng=parseFloat($('eLng').value);
+  if(!$('eName').value.trim()){toast('매장 이름을 입력하세요');return;}
+  if(isNaN(lat)||isNaN(lng)){toast('위치 좌표가 필요해요');return;}
+  const menu=$('eMenu').value.split('\n').map(l=>l.trim()).filter(Boolean).map(l=>{const i=l.lastIndexOf(',');if(i<0)return{name:l,price:0};return{name:l.slice(0,i).trim(),price:parseInt(l.slice(i+1).replace(/[^0-9]/g,''))||0};});
+  const patch={name:$('eName').value.trim(),cat:eSel.cat,radius:eSel.rad,minParty:eSel.minParty||1,lat,lng,
+    photo:$('ePhoto').value.trim(),website:$('eWebsite').value.trim(),menu,hours:$('eHours').value.trim(),phone:$('ePhone').value.trim(),
+    parking:$('eParking').classList.contains('on'),reservation:$('eReserv').classList.contains('on')};
+  const {doc,updateDoc}=NW.fb;
+  await updateDoc(doc(NW.db,'bc_biz',myBizId),patch).catch(e=>{toast('저장 실패: '+e.message);throw e;});
+  myBiz={...myBiz,...patch};
+  // 업종/반경/위치 바뀌었으니 리스너 재시작
+  if(callsUnsub)callsUnsub();
+  toast('매장 정보 저장 완료');
+  openConsole();
+};
+let arrUnsub=null, arrivals=[], arrTimer=null;
+function listenArrivals(){
+  const {collection,query,where,onSnapshot}=NW.fb;
+  console.log('[listenArrivals] 시작 — myBizId:', myBizId);
+  const q=query(collection(NW.db,'bc_calls'),where('matchedBizId','==',myBizId));
+  arrUnsub=onSnapshot(q,snap=>{
+    const all=snap.docs.map(d=>({id:d.id,...d.data()}));
+    arrivals=all.filter(c=>['accepted','going','matched'].includes(c.status));
+    console.log('[listenArrivals] 전체:',all.length,'/ 도착예정:',arrivals.length, all.map(c=>({status:c.status,id:c.id.slice(0,4)})));
+    renderArrivals();
+  },err=>{
+    console.error('[listenArrivals] 오류:',err);
+    toast('도착예정 수신 오류: '+(err.code||err.message));
+  });
+  clearInterval(arrTimer);arrTimer=setInterval(renderArrivals,1000);
+}
+
+window.openStats=()=>{
+  subShow('m-stats');
+  loadMonthStats();
+};
+
+/* 매장 통계 — 이번 달 + 누적 */
+async function loadMonthStats(){
+  const now=new Date();
+  const monthStart=new Date(now.getFullYear(), now.getMonth(), 1);
+  $('stMonthLb').textContent=`${now.getMonth()+1}월`;
+  $('stPeriod').textContent=`${monthStart.getMonth()+1}/1 ~ ${now.getMonth()+1}/${now.getDate()} 기준`;
+  // 평균 별점
+  $('stRating').textContent=myBiz.ratingAvg?(+myBiz.ratingAvg).toFixed(1)+' ⭐':'아직 없음';
+  $('stRatingCount').textContent=myBiz.ratingCount||0;
+  try{
+    const {collection,query,where,getDocs}=NW.fb;
+    // 매칭된 호출 전체
+    const matchedSnap=await getDocs(query(collection(NW.db,'bc_calls'),where('matchedBizId','==',myBizId)));
+    let mMatch=0, mDone=0, mNoshow=0;     // 이번 달
+    let aMatch=0, aDone=0, aNoshow=0;     // 누적
+    matchedSnap.forEach(d=>{
+      const c=d.data();
+      aMatch++;
+      if(c.status==='done') aDone++;
+      else if(c.status==='noshow') aNoshow++;
+      const at=c.matchedAt||c.acceptedAt||c.createdAt;
+      if(at?.toMillis && at.toMillis()>=monthStart.getTime()){
+        mMatch++;
+        if(c.status==='done') mDone++;
+        else if(c.status==='noshow') mNoshow++;
+      }
+    });
+    $('mMatch').textContent=mMatch;
+    $('mDone').textContent=mDone;
+    $('mNoshow').textContent=mNoshow;
+    $('aMatch').textContent=aMatch;
+    $('aDone').textContent=aDone;
+    $('aNoshow').textContent=aNoshow;
+    // 노쇼율 = 노쇼 / 매칭 성사
+    const rate = mMatch>0 ? Math.round(mNoshow/mMatch*100) : 0;
+    $('mNoshowRate').textContent=rate+'%';
+    $('mNoshowRate').style.color = rate>20?'var(--no)':rate>10?'var(--soon)':'var(--tx2)';
+    // 응답한 호출 카운트 (collectionGroup)
+    await loadMonthResponses(monthStart);
+  }catch(e){
+    console.warn('[loadMonthStats] 실패:',e);
+  }
+}
+
+async function loadMonthResponses(monthStart){
+  try{
+    const {collectionGroup,query,where,getDocs}=NW.fb;
+    const snap=await getDocs(query(collectionGroup(NW.db,'responses'),where('bizId','==',myBizId)));
+    let calls=0, resp=0;
+    snap.forEach(d=>{
+      const r=d.data();
+      const at=r.at;
+      if(!at?.toMillis || at.toMillis()<monthStart.getTime())return;
+      calls++;
+      if(r.type!=='no') resp++;
+    });
+    $('mCalls').textContent=calls;
+    $('mResp').textContent=resp;
+  }catch(e){
+    console.warn('[loadMonthResponses] 실패:',e.code);
+    // 인덱스 없을 시 에러 안내
+    if(e.code==='failed-precondition'){
+      $('mCalls').textContent='-';
+      $('mResp').textContent='-';
+    }
+  }
+}
+function renderArrivals(){
+  const area=$('arrArea');
+  $('arrCnt').textContent=arrivals.length?`(${arrivals.length}팀)`:'';
+  if(!arrivals.length){area.innerHTML='<div class="standby" style="padding:24px"><p>아직 확정된 손님이 없습니다.</p></div>';return;}
+  area.innerHTML='<div class="calls-grid">'+arrivals.map(c=>{
+    const cat=catOf(c.cat);
+    const uid=(c.callerId||'').slice(0,6)||'guest';
+    const guest = c.callerName ? `<b>${c.callerName}</b>님` : `손님 <span class="mono">#${uid}</span>`;
+    if(c.status==='accepted'){
+      const left=c.goingDeadline?(tsMs(c.goingDeadline)-nowMs())/1000:0;
+      return `<div class="callcard" style="border-color:var(--soon)">
+        <div class="ch"><div class="party">${c.party}<span>명</span></div>
+          <div class="dist mono" style="background:var(--soonbg);color:var(--soon)">응답 대기</div></div>
+        <div class="cmeta">${cat.e} ${cat.n} · ${guest}</div>
+        <div class="ctimer mono" style="color:var(--soon)">⏳ 손님이 「갈게요」를 누르길 대기 (${left>0?Math.ceil(left)+'초':'마감'})</div>
+        </div>`;
+    }
+    const left=c.matchExpiresAt?(tsMs(c.matchExpiresAt)-nowMs())/1000:0;
+    const over=left<=0;
+    return `<div class="callcard" style="border-color:${over?'var(--no)':'var(--ok)'}">
+      <div class="ch"><div class="party">${c.party}<span>명</span></div>
+        <div class="dist mono" style="background:${over?'var(--nobg)':'var(--okbg)'};color:${over?'var(--no)':'var(--ok)'}">${over?'시간초과':'도착중'}</div></div>
+      <div class="cmeta">${cat.e} ${cat.n} · ${guest}</div>
+      <div class="ctimer mono" style="color:${over?'var(--no)':'var(--soon)'}">⏱ ${over?'노쇼 가능 — 자동 처리됨':fmtT(left)+' 내 도착 예정'}</div>
+      <div class="resp-row" style="margin-top:8px">
+        <button class="resp-btn rb-ok" onclick="confirmArrival('${c.id}')">✓ 도착 확인</button>
+        <button class="resp-btn rb-no" onclick="markNoShow('${c.id}')">노쇼</button>
+      </div>
+      </div>`;}).join('')+'</div>';
+}
+
+window.confirmArrival=async(callId)=>{
+  const c=arrivals.find(x=>x.id===callId);
+  const name=c?.callerName||'손님';
+  if(!confirm(`${name}님이 도착했나요?`))return;
+  const {doc,updateDoc,serverTimestamp}=NW.fb;
+  // 진단 — 인증 상태 출력
+  const u=NW.auth.currentUser;
+  console.log('=== 진단 정보 ===');
+  console.log('현재 사용자 uid:', u?.uid);
+  console.log('현재 사용자 email:', u?.email);
+  console.log('익명 여부:', u?.isAnonymous);
+  console.log('callId:', callId);
+  console.log('호출 callerId:', c?.callerId, '→ 나와 같음?', c?.callerId===u?.uid);
+  console.log('호출 matchedBizId:', c?.matchedBizId, '→ 내 매장?', c?.matchedBizId===myBizId);
+  console.log('호출 status:', c?.status);
+  console.log('매장 ownerId:', myBiz?.ownerId, '→ 나와 같음?', myBiz?.ownerId===u?.uid);
+  console.log('==============');
+  try{
+    await updateDoc(doc(NW.db,'bc_calls',callId),{status:'done',arrivedAt:serverTimestamp()});
+    toast('🎉 도착 확인 완료');
+  }catch(e){
+    console.error('[confirmArrival] 실패:',e);
+    toast('실패: '+(e.code||e.message||'알 수 없는 오류'));
+  }
+};
+window.markNoShow=async(callId)=>{
+  const c=arrivals.find(x=>x.id===callId);
+  const name=c?.callerName||'이 손님';
+  if(!confirm(`${name}을(를) 노쇼 처리할까요? (손님에게 패널티 적용)`))return;
+  const {doc,updateDoc}=NW.fb;
+  try{ await updateDoc(doc(NW.db,'bc_calls',callId),{status:'noshow'}); toast('노쇼 처리됨'); }
+  catch(e){toast('실패: '+e.message);}
+};
+window.setBizStatus=async(s,silent)=>{
+  myBiz.status=s;
+  $('st-open').classList.toggle('on',s==='open');
+  $('st-busy').classList.toggle('on',s==='busy');
+  $('st-close').classList.toggle('on',s==='closed');
+  if(myBizId){const {doc,updateDoc}=NW.fb;await updateDoc(NW.fb.doc(NW.db,'bc_biz',myBizId),{status:s}).catch(()=>{});}
+  if(!silent)toast(s==='open'?'영업중으로 변경':s==='busy'?'혼잡 상태로 변경':'마감 처리');
+};
+function listenCalls(){
+  const {collection,query,where,onSnapshot}=NW.fb;
+  // 단일 where(cat)만 사용 → 복합 인덱스 불필요. status는 클라이언트에서 필터.
+  // 새 호출은 cats[] 배열로 저장됨. array-contains로 매칭. (구 호출도 cat=cats[0]이라 별도 처리 X)
+  const q=query(collection(NW.db,'bc_calls'),where('cats','array-contains',myBiz.cat));
+  callsUnsub=onSnapshot(q,snap=>{
+    const list=[];
+    snap.forEach(d=>{const c={id:d.id,...d.data()};
+      if(c.status!=='searching')return;
+      const exp=tsMs(c.expiresAt);if(exp&&exp<nowMs())return;
+      // 직접호출(이 매장 지목)은 거리·최소인원 필터 우회
+      const isDirectToMe = c.directBizId === myBizId;
+      // 다른 매장 지목 직접호출은 제외
+      if(c.directBizId && !isDirectToMe) return;
+      if(!isDirectToMe){
+        if(c.party < (myBiz.minParty||1))return;
+        const dist=haversine(myBiz,{lat:c.lat,lng:c.lng});
+        if(dist>(myBiz.radius||2000))return;
+        c._dist=dist;
+      }else{
+        c._dist=haversine(myBiz,{lat:c.lat,lng:c.lng});
+      }
+      list.push(c);});
+    renderCalls(list);
+  },err=>{ console.error('[listenCalls] 쿼리 오류:',err); toast('호출 수신 오류: '+(err.code||err.message)); });
+}
+function renderCalls(list){
+  let newCount=0;
+  list.forEach(c=>{if(!stats._seen.has(c.id)){stats._seen.add(c.id);stats.calls++;newCount++;}});
+  if(newCount>0) fireAlarm(newCount);
+  $('tsCalls').textContent=stats.calls;$('tsResp').textContent=stats.resp;$('tsMatch').textContent=stats.match;
+  const area=$('callsArea');
+  if(myBiz.status==='closed'){area.innerHTML='<div class="standby"><div class="big">🔴</div><h3>마감 상태</h3><p>마감 중에는 호출을 받지 않습니다.</p></div>';return;}
+  if(list.length===0){area.innerHTML=`<div class="standby"><div class="big">📡</div><h3>호출 대기 중</h3><p>반경 안에서 호출이 오면 즉시 표시됩니다.</p><div class="pin">${myBiz.lat.toFixed(4)}, ${myBiz.lng.toFixed(4)}</div></div>`;return;}
+  area.innerHTML='<div class="calls-grid">'+list.sort((a,b)=>a._dist-b._dist).map(callCard).join('')+'</div>';
+  list.forEach(c=>startCallTimer(c.id,tsMs(c.expiresAt)));
+}
+
+/* ── 알람 시스템 ── 소리 + 브라우저 알림 + 탭 제목 깜빡임 + 진동 */
+let alarmOn=false, titleBlinkTimer=null, audioCtx=null, firstLoad=true;
+const ORIG_TITLE=document.title;
+
+window.toggleAlarm=async()=>{
+  alarmOn=!alarmOn;
+  const btn=$('alarmBtn');
+  if(alarmOn){
+    btn.style.color='var(--y)'; btn.style.borderColor='var(--y)';
+    btn.textContent='🔔 알람 ON';
+    // 사용자 제스처 안에서 오디오 컨텍스트 활성화 (자동재생 정책 회피)
+    try{
+      if(!audioCtx){
+        const AC=window.AudioContext||window.webkitAudioContext;
+        if(AC) audioCtx=new AC();
+      }
+      if(audioCtx && audioCtx.state==='suspended') await audioCtx.resume();
+    }catch(e){}
+    // 브라우저 알림 권한
+    if('Notification' in window && Notification.permission==='default'){
+      try{ await Notification.requestPermission(); }catch(e){}
+    }
+    toast('🔔 알람 켜짐 (소리·알림·진동)');
+  }else{
+    btn.style.color=''; btn.style.borderColor='';
+    btn.textContent='🔔 알람 OFF';
+    stopTitleBlink();
+    toast('🔕 알람 꺼짐');
+  }
+};
+
+function fireAlarm(count){
+  // 첫 로드(기존 호출이 잡힐 때)는 알람 안 울림
+  if(firstLoad){ firstLoad=false; return; }
+  if(!alarmOn) return;
+  playBeep();
+  blinkTitle(count);
+  showNotification(count);
+  vibrate();
+}
+function playBeep(){
+  if(!audioCtx) return;
+  try{
+    // 띵-동: 880Hz 짧게, 660Hz 짧게
+    const now=audioCtx.currentTime;
+    [[880,now,0.18],[660,now+0.22,0.22]].forEach(([f,t,d])=>{
+      const osc=audioCtx.createOscillator(), gain=audioCtx.createGain();
+      osc.type='sine'; osc.frequency.value=f;
+      gain.gain.setValueAtTime(0,t);
+      gain.gain.linearRampToValueAtTime(0.35,t+0.01);
+      gain.gain.exponentialRampToValueAtTime(0.001,t+d);
+      osc.connect(gain).connect(audioCtx.destination);
+      osc.start(t); osc.stop(t+d);
+    });
+  }catch(e){}
+}
+function blinkTitle(count){
+  stopTitleBlink();
+  let on=true;
+  titleBlinkTimer=setInterval(()=>{
+    document.title = on?`🔔 호출 ${count}건 — ${ORIG_TITLE}`:ORIG_TITLE;
+    on=!on;
+  },800);
+  // 사용자가 탭에 포커스하면 제목 복원
+  const restore=()=>{ stopTitleBlink(); window.removeEventListener('focus',restore); document.removeEventListener('visibilitychange',vis); };
+  const vis=()=>{ if(document.visibilityState==='visible') restore(); };
+  window.addEventListener('focus',restore);
+  document.addEventListener('visibilitychange',vis);
+}
+function stopTitleBlink(){ if(titleBlinkTimer){clearInterval(titleBlinkTimer);titleBlinkTimer=null;} document.title=ORIG_TITLE; }
+function showNotification(count){
+  if(!('Notification' in window) || Notification.permission!=='granted') return;
+  try{
+    const n=new Notification('BIMILCALL — 새 호출',{
+      body:`${count}건의 새 호출이 도착했어요`,
+      tag:'nw-call', renotify:true, requireInteraction:false
+    });
+    n.onclick=()=>{ window.focus(); n.close(); };
+  }catch(e){}
+}
+function vibrate(){
+  if(navigator.vibrate) try{ navigator.vibrate([220,120,220]); }catch(e){}
+}
+function callCard(c){const cat=catOf(c.cat);const done=respondedCalls.has(c.id);let action;
+  const isDirect = c.directBizId === myBizId;
+  if(done)action=`<div class="resp-done" style="background:var(--okbg);color:var(--ok)">✓ 응답 완료</div>`;
+  else if(myBiz.status==='busy')action=`<div class="resp-row"><button class="resp-btn rb-soon" onclick="respond('${c.id}','soon')">10분 후</button><button class="resp-btn rb-no" onclick="respond('${c.id}','no')">불가</button></div>`;
+  else action=`<div class="resp-row"><button class="resp-btn rb-ok" onclick="respond('${c.id}','ok')">가능</button><button class="resp-btn rb-soon" onclick="respond('${c.id}','soon')">10분 후</button><button class="resp-btn rb-no" onclick="respond('${c.id}','no')">불가</button></div>`;
+  const directBadge = isDirect ? `<div style="position:absolute;top:8px;right:8px;background:var(--y);color:#fff;font-size:11px;font-weight:800;padding:3px 8px;border-radius:6px">📞 직접호출</div>` : '';
+  return `<div class="callcard fresh" id="call-${c.id}" style="position:relative">${directBadge}<div class="ch"><div class="party">${c.party}<span>명</span></div><div class="dist mono">${distLabel(c._dist)}</div></div>
+    <div class="cmeta">${cat.e} ${cat.n} 요청${isDirect?' · 본 매장 지목':''}</div><div class="ctimer mono" id="ct-${c.id}">⏱ 대기중</div>${action}</div>`;}
+function startCallTimer(id,exp){if(callTimers[id])return;
+  callTimers[id]=setInterval(()=>{const el=$('ct-'+id);if(!el){clearInterval(callTimers[id]);delete callTimers[id];return;}
+    const left=(exp-nowMs())/1000;el.textContent='⏱ '+fmtT(left)+' 남음';if(left<=0){clearInterval(callTimers[id]);delete callTimers[id];}},500);}
+window.respond=async(callId,type)=>{
+  const {doc,getDoc,setDoc,updateDoc,onSnapshot,serverTimestamp,Timestamp}=NW.fb;
+  const cs=await getDoc(doc(NW.db,'bc_calls',callId));
+  if(!cs.exists()||cs.data().status!=='searching'){toast('이미 마감된 호출이에요.');return;}
+  const cd=cs.data();const realDist=haversine(myBiz,{lat:cd.lat,lng:cd.lng});
+  await setDoc(doc(NW.db,'bc_calls',callId,'responses',myBizId),{bizId:myBizId,bizName:myBiz.name,cat:myBiz.cat,type,dist:realDist,
+    responderUid:NW.uid, responderName:NW.user?.displayName||'', responderEmail:NW.user?.email||'',
+    at:serverTimestamp()});
+  respondedCalls.add(callId);
+  if(type!=='no'){stats.resp++;$('tsResp').textContent=stats.resp;}
+  // 핫플 직접호출(directBizId 있음) + '가능' 응답이면 'accepted' 상태로 (사용자 '갈게요' 대기)
+  if(type==='ok' && cd.directBizId===myBizId){
+    const goingDeadline=Timestamp.fromMillis(nowMs()+30*1000);
+    await updateDoc(doc(NW.db,'bc_calls',callId),{
+      status:'accepted', matchedBizId:myBizId, matchedBizName:myBiz.name,
+      acceptedAt:serverTimestamp(), goingDeadline
+    }).catch(()=>{});
+    toast('🎉 직접호출 수락 — 손님이 30초 안에 「갈게요」를 누르면 예약 확정');
+  }else{
+    toast(type==='ok'?'「가능」 응답 전송':type==='soon'?'「10분 후」 응답 전송':'「불가」 응답');
+  }
+  const un=onSnapshot(doc(NW.db,'bc_calls',callId),s=>{if(!s.exists())return;const d=s.data();
+    if(d.status==='matched'&&d.matchedBizId===myBizId){un();}
+    else if(d.status==='matched'&&d.matchedBizId!==myBizId){toast('아쉽게도 다른 매장으로 매칭됐어요.');un();}
+    else if(['expired','cancelled','done','noshow'].includes(d.status))un();});
+  const el=$('call-'+callId);if(el){const btn=el.querySelector('.resp-row');if(btn)btn.outerHTML='<div class="resp-done" style="background:var(--okbg);color:var(--ok)">✓ 응답 완료</div>';}
+};
+window.addEventListener('beforeunload',()=>{if(callsUnsub)callsUnsub();if(arrUnsub)arrUnsub();});
+</script>
+</body>
+</html>
