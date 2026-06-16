@@ -3,12 +3,12 @@
    ① Firebase 설정은 여기 한 곳에서만 관리합니다.
    ============================================================ */
 const FIREBASE_CONFIG = {
-  apiKey:            "AIzaSyBTcQKjBTXIl6UuNIndOuTI-nsBH5Wz0J4",
-  authDomain:        "nowait-84116.firebaseapp.com",
-  projectId:         "nowait-84116",
-  storageBucket:     "nowait-84116.firebasestorage.app",
-  messagingSenderId: "121578768600",
-  appId:             "1:121578768600:web:3c57e58e21945dca956fad"
+  apiKey:            "AIzaSyADivM1q1gKRiwXC0dXXxMSvcbZ63-eb9k",
+  authDomain:        "bimilcall.firebaseapp.com",
+  projectId:         "bimilcall",
+  storageBucket:     "bimilcall.firebasestorage.app",
+  messagingSenderId: "614978066677",
+  appId:             "1:614978066677:web:7b2efbfb6fcf9f19cb4dbc"
 };
 /* ============================================================ */
 
