@@ -91,7 +91,6 @@
       <!-- 푸터 -->
       <div style="padding:24px 20px;background:var(--bg3);border-top:1px solid var(--bd);font-size:11px;color:var(--tx3);line-height:1.8">
         <div style="font-weight:800;color:var(--tx2);margin-bottom:8px">BimilCall (비밀콜)</div>
-        <div>대표자 : 유명환</div>
         <div>사업자등록번호 : 등록 예정</div>
         <div>주소 : 서울특별시 강남구</div>
         <div>고객문의 : urildlduri@gmail.com</div>
@@ -390,13 +389,13 @@ async function restoreActiveCall(){
     const {collection,query,where,getDocs}=NW.fb;
     let snap;
     try{
-      snap=await getDocs(query(collection(NW.db,'bc_calls'),
+      snap=await getDocs(query(collection(NW.db,'calls'),
         where('callerId','==',NW.uid),
         where('status','in',['searching','accepted','going','matched'])));
     }catch(e){
       // 인덱스 없을 경우 — callerId만으로 받아서 클라이언트 필터
       console.warn('[restoreActiveCall] in-쿼리 인덱스 없음, 폴백:',e.code);
-      snap=await getDocs(query(collection(NW.db,'bc_calls'),where('callerId','==',NW.uid)));
+      snap=await getDocs(query(collection(NW.db,'calls'),where('callerId','==',NW.uid)));
     }
     if(snap.empty) return;
     // 가장 최근 호출 1건 선택
@@ -407,19 +406,19 @@ async function restoreActiveCall(){
       // 만료된 호출은 정리
       if(c.status==='searching' && c.expiresAt && tsMs(c.expiresAt)<nowMs()){
         const {doc,updateDoc}=NW.fb;
-        updateDoc(doc(NW.db,'bc_calls',c.id),{status:'expired'}).catch(()=>{});
+        updateDoc(doc(NW.db,'calls',c.id),{status:'expired'}).catch(()=>{});
         return;
       }
       // 'going' 상태에서 도착 시간 지났으면 노쇼
       if(c.status==='going' && c.matchExpiresAt && tsMs(c.matchExpiresAt)<nowMs()){
         const {doc,updateDoc}=NW.fb;
-        updateDoc(doc(NW.db,'bc_calls',c.id),{status:'noshow'}).catch(()=>{});
+        updateDoc(doc(NW.db,'calls',c.id),{status:'noshow'}).catch(()=>{});
         return;
       }
       // 'accepted' 상태에서 30초 지났으면 자동취소
       if(c.status==='accepted' && c.goingDeadline && tsMs(c.goingDeadline)<nowMs()){
         const {doc,updateDoc}=NW.fb;
-        updateDoc(doc(NW.db,'bc_calls',c.id),{status:'cancelled'}).catch(()=>{});
+        updateDoc(doc(NW.db,'calls',c.id),{status:'cancelled'}).catch(()=>{});
         return;
       }
       if(!active || (c.createdAt?.toMillis?.()||0) > (active.createdAt?.toMillis?.()||0)){
@@ -441,7 +440,7 @@ async function restoreCallState(c){
   if(c.matchedBizId){
     try{
       const {doc,getDoc}=NW.fb;
-      const s=await getDoc(doc(NW.db,'bc_biz',c.matchedBizId));
+      const s=await getDoc(doc(NW.db,'biz',c.matchedBizId));
       if(s.exists()) biz={id:c.matchedBizId,...s.data()};
     }catch(e){}
   }
@@ -498,7 +497,7 @@ async function loadHotplaces(force){
   }
   try{
     const {collection,getDocs,query,where}=NW.fb;
-    const snap=await getDocs(query(collection(NW.db,'bc_biz'),where('isHot','==',true)));
+    const snap=await getDocs(query(collection(NW.db,'biz'),where('isHot','==',true)));
     let list=snap.docs.map(d=>({id:d.id,...d.data()}));
     // 3km 이내만 필터 + 거리순
     list=list.filter(h=>h.lat&&h.lng).map(h=>{
@@ -558,7 +557,7 @@ function renderHot(list){
 window.openHotDetail=async(bizId)=>{
   try{
     const {doc,getDoc}=NW.fb;
-    const s=await getDoc(doc(NW.db,'bc_biz',bizId));
+    const s=await getDoc(doc(NW.db,'biz',bizId));
     if(!s.exists()){toast('매장을 찾을 수 없어요');return;}
     const b=s.data();
     showHotDetail({id:bizId,...b});
@@ -639,7 +638,7 @@ async function drawHotMap(b){
 window.closeHotDetail=()=>{ hotLoaded=false; subShow('u-hot'); curHotBiz=null; loadHotplaces(true); };
 
 /* ════════════════════════════════════════════════════════════════
-   💬 익명 커뮤니티 — bc_community
+   💬 익명 커뮤니티 — community
    완전 익명: 닉네임 자동 생성, 실명·이메일 비노출
    ════════════════════════════════════════════════════════════════ */
 
@@ -676,7 +675,7 @@ async function loadCommunity(){
   if(!NW.db){$('commList').innerHTML='<div class="muted" style="padding:40px 20px;text-align:center">Firebase 연결 필요</div>';return;}
   const {collection,query,orderBy,onSnapshot,limit} = NW.fb;
   try{
-    const q = query(collection(NW.db,'bc_community'), orderBy('createdAt','desc'), limit(50));
+    const q = query(collection(NW.db,'community'), orderBy('createdAt','desc'), limit(50));
     commUnsub = onSnapshot(q, snap=>{
       let posts = snap.docs.map(d=>({id:d.id,...d.data()}));
       if(commCurrentCat!=='all') posts = posts.filter(p=>p.category===commCurrentCat);
@@ -782,7 +781,7 @@ window.submitComm=async()=>{
   btn.disabled=true; btn.textContent='등록 중…';
   try{
     const {collection,addDoc,serverTimestamp} = NW.fb;
-    await addDoc(collection(NW.db,'bc_community'),{
+    await addDoc(collection(NW.db,'community'),{
       title,
       content,
       category: commWriteCat,
@@ -814,7 +813,7 @@ document.addEventListener('input', e=>{
 window.openCommDetail=async(postId)=>{
   try{
     const {doc,getDoc} = NW.fb;
-    const s = await getDoc(doc(NW.db,'bc_community',postId));
+    const s = await getDoc(doc(NW.db,'community',postId));
     if(!s.exists()){toast('삭제된 글이에요');return;}
     const p = s.data();
     const t = p.createdAt?.toDate ? p.createdAt.toDate() : new Date();
@@ -851,7 +850,7 @@ window.likeCommPost=async(postId)=>{
   if(!NW.uid){toast('로그인이 필요합니다');return;}
   try{
     const {doc,updateDoc,increment} = NW.fb;
-    await updateDoc(doc(NW.db,'bc_community',postId),{likes: increment(1)});
+    await updateDoc(doc(NW.db,'community',postId),{likes: increment(1)});
     toast('❤️ 좋아요!');
     openCommDetail(postId);
   }catch(e){toast('실패: '+(e.code||e.message));}
@@ -860,7 +859,7 @@ window.deleteCommPost=async(postId)=>{
   if(!confirm('이 글을 삭제할까요?'))return;
   try{
     const {doc,deleteDoc} = NW.fb;
-    await deleteDoc(doc(NW.db,'bc_community',postId));
+    await deleteDoc(doc(NW.db,'community',postId));
     toast('삭제 완료');
     closeCommDetail();
   }catch(e){toast('실패: '+(e.code||e.message));}
@@ -875,7 +874,7 @@ window.directCall=async()=>{
   const {collection,addDoc,serverTimestamp,Timestamp}=NW.fb;
   const expires=Timestamp.fromMillis(nowMs()+DIRECT_TTL*1000);
   try{
-    const ref=await addDoc(collection(NW.db,'bc_calls'),{
+    const ref=await addDoc(collection(NW.db,'calls'),{
       callerId:NW.uid, callerName:NW.user?.displayName||'', party:dcParty,
       cats:[b.cat], cat:b.cat,
       lat:myLoc.lat, lng:myLoc.lng,
@@ -907,7 +906,7 @@ function startDirectTimer(){
 function listenDirectResponse(bizId){
   if(dcUnsub) dcUnsub();
   const {doc,onSnapshot,collection}=NW.fb;
-  const callRef=doc(NW.db,'bc_calls',dcCallId);
+  const callRef=doc(NW.db,'calls',dcCallId);
   const u1=onSnapshot(callRef,s=>{
     if(!s.exists())return;
     const d=s.data();
@@ -917,7 +916,7 @@ function listenDirectResponse(bizId){
       onDirectTimeout();
     }
   });
-  const u2=onSnapshot(collection(NW.db,'bc_calls',dcCallId,'responses'),snap=>{
+  const u2=onSnapshot(collection(NW.db,'calls',dcCallId,'responses'),snap=>{
     snap.forEach(d=>{
       const r=d.data();
       if(r.bizId!==bizId) return;
@@ -951,7 +950,7 @@ async function onDirectAccepted(d){
 function onAcceptedTimeout(){
   if(curCallId){
     const {doc,updateDoc}=NW.fb;
-    updateDoc(doc(NW.db,'bc_calls',curCallId),{status:'cancelled'}).catch(()=>{});
+    updateDoc(doc(NW.db,'calls',curCallId),{status:'cancelled'}).catch(()=>{});
   }
   curCallId=null; matchData=null;
   hideMatchBar();
@@ -964,7 +963,7 @@ window.confirmGoing=async()=>{
   const {doc,updateDoc,serverTimestamp,Timestamp}=NW.fb;
   try{
     const matchExp=Timestamp.fromMillis(nowMs()+MATCH_TTL*1000);
-    await updateDoc(doc(NW.db,'bc_calls',curCallId),{
+    await updateDoc(doc(NW.db,'calls',curCallId),{
       status:'going', goingAt:serverTimestamp(), matchExpiresAt:matchExp
     });
     toast('🚶 갈게요! 15분 안에 도착하세요.');
@@ -976,7 +975,7 @@ window.declineGoing=async()=>{
   if(!confirm('정말 가지 않으시겠어요?'))return;
   if(acTimer){clearInterval(acTimer); acTimer=null;}
   const {doc,updateDoc}=NW.fb;
-  try{ if(curCallId) await updateDoc(doc(NW.db,'bc_calls',curCallId),{status:'cancelled'}); }catch(e){}
+  try{ if(curCallId) await updateDoc(doc(NW.db,'calls',curCallId),{status:'cancelled'}); }catch(e){}
   curCallId=null; matchData=null;
   hideMatchBar();
   toast('취소했어요');
@@ -1013,7 +1012,7 @@ function cleanupDirect(){
 async function cancelDirectDoc(status){
   if(!dcCallId) return;
   const {doc,updateDoc}=NW.fb;
-  try{ await updateDoc(doc(NW.db,'bc_calls',dcCallId),{status}); }catch(e){}
+  try{ await updateDoc(doc(NW.db,'calls',dcCallId),{status}); }catch(e){}
   dcCallId=null;
 }
 
@@ -1023,8 +1022,8 @@ async function loadHotReviews(bizId){
   const {collection,query,where,getDocs,orderBy}=NW.fb;
   // 1) 이 매장 리뷰 목록
   let snap;
-  try{ snap=await getDocs(query(collection(NW.db,'bc_reviews'),where('bizId','==',bizId),orderBy('at','desc'))); }
-  catch(e){ snap=await getDocs(query(collection(NW.db,'bc_reviews'),where('bizId','==',bizId))); }
+  try{ snap=await getDocs(query(collection(NW.db,'reviews'),where('bizId','==',bizId),orderBy('at','desc'))); }
+  catch(e){ snap=await getDocs(query(collection(NW.db,'reviews'),where('bizId','==',bizId))); }
   const list=snap.docs.map(d=>({id:d.id,...d.data()}));
   // 2) 내 리뷰 자격: 이 매장에 도착완료(done) 기록이 있는지
   let canReview=false; let myReview=null;
@@ -1037,7 +1036,7 @@ async function loadHotReviews(bizId){
 async function checkArrivedAt(bizId){
   try{
     const {collection,query,where,getDocs}=NW.fb;
-    const snap=await getDocs(query(collection(NW.db,'bc_calls'),
+    const snap=await getDocs(query(collection(NW.db,'calls'),
       where('callerId','==',NW.uid),where('matchedBizId','==',bizId),where('status','==','done')));
     return !snap.empty;
   }catch(e){return false;}
@@ -1094,9 +1093,9 @@ window.submitReview=async(bizId)=>{
   const reviewId=`${bizId}_${NW.uid}`;
   try{
     // 신규 작성인지 확인 (이미 있으면 수정만, 포인트 X)
-    const existing = await getDoc(doc(NW.db,'bc_reviews',reviewId));
+    const existing = await getDoc(doc(NW.db,'reviews',reviewId));
     const isNew = !existing.exists();
-    await setDoc(doc(NW.db,'bc_reviews',reviewId),{
+    await setDoc(doc(NW.db,'reviews',reviewId),{
       bizId, bizName:curHotBiz?.name||'', uid:NW.uid,
       userName:NW.user?.displayName||'', rating:rvRating, text, at:serverTimestamp()
     });
@@ -1111,22 +1110,22 @@ window.deleteMyReview=async(reviewId,bizId)=>{
   if(!confirm('내 리뷰를 삭제할까요?'))return;
   const {doc,deleteDoc}=NW.fb;
   try{
-    await deleteDoc(doc(NW.db,'bc_reviews',reviewId));
+    await deleteDoc(doc(NW.db,'reviews',reviewId));
     await updateBizRating(bizId);
     toast('삭제 완료'); loadHotReviews(bizId);
   }catch(e){toast('실패: '+e.message);}
 };
 async function updateBizRating(bizId){
   const {collection,query,where,getDocs,doc,updateDoc}=NW.fb;
-  const snap=await getDocs(query(collection(NW.db,'bc_reviews'),where('bizId','==',bizId)));
+  const snap=await getDocs(query(collection(NW.db,'reviews'),where('bizId','==',bizId)));
   if(snap.empty){
-    await updateDoc(doc(NW.db,'bc_biz',bizId),{ratingAvg:0,ratingCount:0}).catch(()=>{});
+    await updateDoc(doc(NW.db,'biz',bizId),{ratingAvg:0,ratingCount:0}).catch(()=>{});
     return;
   }
   let sum=0,n=0;
   snap.forEach(d=>{const r=d.data();if(r.rating){sum+=r.rating;n++;}});
   const avg=n?+(sum/n).toFixed(2):0;
-  await updateDoc(doc(NW.db,'bc_biz',bizId),{ratingAvg:avg,ratingCount:n}).catch(()=>{});
+  await updateDoc(doc(NW.db,'biz',bizId),{ratingAvg:avg,ratingCount:n}).catch(()=>{});
 }
 
 function buildChips(){
@@ -1187,7 +1186,7 @@ let penaltyUntil=0;
 async function refreshPenalty(){
   if(!NW.cfgOk||!NW.uid)return;
   const {doc,getDoc}=NW.fb;
-  const s=await getDoc(doc(NW.db,'bc_users',NW.uid));
+  const s=await getDoc(doc(NW.db,'users',NW.uid));
   penaltyUntil=s.exists()?tsMs(s.data().penaltyUntil):0;
   renderPenaltyBanner();
 }
@@ -1206,7 +1205,7 @@ window.startCall=async()=>{
   if(!(sel.party&&sel.cats.length&&myLoc))return;
   const {collection,addDoc,serverTimestamp,Timestamp}=NW.fb;
   const expires=Timestamp.fromMillis(nowMs()+CALL_TTL*1000);
-  const ref=await addDoc(collection(NW.db,'bc_calls'),{
+  const ref=await addDoc(collection(NW.db,'calls'),{
     callerId:NW.uid, callerName:NW.user?.displayName||'', party:sel.party,
     cats:sel.cats, cat:sel.cats[0],   // 다중 + 구버전 호환
     lat:myLoc.lat, lng:myLoc.lng,
@@ -1224,7 +1223,7 @@ async function autoRespondDemo(callId){
     const {collection,query,where,getDocs,doc,setDoc,serverTimestamp}=NW.fb;
     const cats=sel.cats.slice();
     // 'in' 쿼리는 최대 10개, 우리 cats는 최대 9개라 안전
-    const snap=await getDocs(query(collection(NW.db,'bc_biz'),where('cat','in',cats)));
+    const snap=await getDocs(query(collection(NW.db,'biz'),where('cat','in',cats)));
     const demos=snap.docs.map(d=>({id:d.id,...d.data()}))
       .filter(b=>b.demo && b.approved!==false);
     demos.forEach(b=>{
@@ -1235,7 +1234,7 @@ async function autoRespondDemo(callId){
       const delay=800+Math.random()*2500;
       setTimeout(async()=>{
         if(curCallId!==callId) return;
-        await setDoc(doc(NW.db,'bc_calls',callId,'responses',b.id),{
+        await setDoc(doc(NW.db,'calls',callId,'responses',b.id),{
           bizId:b.id, bizName:b.name, cat:b.cat, type, dist, at:serverTimestamp()
         }).catch(()=>{});
       }, delay);
@@ -1245,7 +1244,7 @@ async function autoRespondDemo(callId){
 function listenResponses(){
   responses=[];
   const {collection,onSnapshot}=NW.fb;
-  callUnsub=onSnapshot(collection(NW.db,'bc_calls',curCallId,'responses'),snap=>{
+  callUnsub=onSnapshot(collection(NW.db,'calls',curCallId,'responses'),snap=>{
     responses=snap.docs.map(d=>({id:d.id,...d.data()})).filter(r=>r.type!=='no');
     $('srCount').textContent=responses.length; renderResponses();
   });
@@ -1287,12 +1286,12 @@ async function endSearch(){
   if(!curCallId)return;
   if(responses.length===0){
     const {doc,updateDoc}=NW.fb;
-    await updateDoc(doc(NW.db,'bc_calls',curCallId),{status:'expired'}).catch(()=>{});
+    await updateDoc(doc(NW.db,'calls',curCallId),{status:'expired'}).catch(()=>{});
     cleanupCall();toast('주변에서 응답이 없었어요. 다시 시도해 주세요.');subShow('u-home');
   }
 }
 window.cancelCall=async()=>{
-  if(curCallId){const {doc,updateDoc}=NW.fb;await updateDoc(doc(NW.db,'bc_calls',curCallId),{status:'cancelled'}).catch(()=>{});}
+  if(curCallId){const {doc,updateDoc}=NW.fb;await updateDoc(doc(NW.db,'calls',curCallId),{status:'cancelled'}).catch(()=>{});}
   cleanupCall();subShow('u-home');
 };
 function cleanupCall(){clearInterval(callTimer);if(callUnsub){callUnsub();callUnsub=null;}}
@@ -1305,7 +1304,7 @@ window.openDetail=async(respId)=>{
   const c=catOf(r.cat||sel.cats[0]);
   // 매장 상세 문서 로드
   let b={};
-  try{const {doc,getDoc}=NW.fb;const s=await getDoc(doc(NW.db,'bc_biz',r.id));if(s.exists())b=s.data();}catch(e){}
+  try{const {doc,getDoc}=NW.fb;const s=await getDoc(doc(NW.db,'biz',r.id));if(s.exists())b=s.data();}catch(e){}
   detailBiz=b;
   subShow('u-detail');
   // 사진
@@ -1371,13 +1370,13 @@ window.confirmMatch=async()=>{
   try{
     const {doc,getDoc,updateDoc,serverTimestamp,Timestamp}=NW.fb;
     // 아직 searching인지 다시 확인 (만료/취소된 호출 방어)
-    const cs=await getDoc(doc(NW.db,'bc_calls',curCallId));
+    const cs=await getDoc(doc(NW.db,'calls',curCallId));
     if(!cs.exists()||cs.data().status!=='searching'){
       toast('이미 처리된 호출이에요. 다시 시도해 주세요.');
       matching=false; cleanupCall(); subShow('u-home'); return;
     }
     const matchExp=Timestamp.fromMillis(nowMs()+MATCH_TTL*1000);
-    await updateDoc(doc(NW.db,'bc_calls',curCallId),{
+    await updateDoc(doc(NW.db,'calls',curCallId),{
       status:'going', matchedBizId:r.id, matchedBizName:r.bizName,
       matchedAt:serverTimestamp(), goingAt:serverTimestamp(), matchExpiresAt:matchExp});
     matchData={callId:curCallId,...r,biz:detailBiz, party:sel.party};
@@ -1424,7 +1423,7 @@ function watchMatchStatus(){
   if(!matchData?.callId) return;
   if(matchStatusUnsub) matchStatusUnsub();
   const {doc,onSnapshot}=NW.fb;
-  matchStatusUnsub=onSnapshot(doc(NW.db,'bc_calls',matchData.callId),s=>{
+  matchStatusUnsub=onSnapshot(doc(NW.db,'calls',matchData.callId),s=>{
     if(!s.exists())return;
     const d=s.data();
     if(d.status==='done'){
@@ -1452,7 +1451,7 @@ function watchMatchStatus(){
 async function onNoShowReceived(){
   penaltyUntil=nowMs()+PENALTY*1000;
   const {doc,setDoc,Timestamp}=NW.fb;
-  await setDoc(doc(NW.db,'bc_users',NW.uid),{penaltyUntil:Timestamp.fromMillis(penaltyUntil)},{merge:true}).catch(()=>{});
+  await setDoc(doc(NW.db,'users',NW.uid),{penaltyUntil:Timestamp.fromMillis(penaltyUntil)},{merge:true}).catch(()=>{});
   await saveHist('noshow');
   matchData=null;curCallId=null;
   toast('노쇼 처리됐어요. 30분 패널티가 적용됩니다.');
@@ -1494,11 +1493,11 @@ async function coarsenCallLocation(callId){
   if(!callId) return;
   const {doc,getDoc,updateDoc}=NW.fb;
   try{
-    const s=await getDoc(doc(NW.db,'bc_calls',callId));
+    const s=await getDoc(doc(NW.db,'calls',callId));
     if(!s.exists()) return;
     const d=s.data();
     if(d.lat==null||d.lng==null||d.locationCoarsened) return;
-    await updateDoc(doc(NW.db,'bc_calls',callId),{
+    await updateDoc(doc(NW.db,'calls',callId),{
       lat:+(+d.lat).toFixed(3), lng:+(+d.lng).toFixed(3),
       locationCoarsened:true
     });
@@ -1506,28 +1505,28 @@ async function coarsenCallLocation(callId){
 }
 
 window.arrive=async()=>{clearInterval(matchTimer);
-  if(matchData){const {doc,updateDoc,serverTimestamp}=NW.fb;await updateDoc(doc(NW.db,'bc_calls',matchData.callId),{status:'done',arrivedAt:serverTimestamp()}).catch(()=>{});await coarsenCallLocation(matchData.callId);}
+  if(matchData){const {doc,updateDoc,serverTimestamp}=NW.fb;await updateDoc(doc(NW.db,'calls',matchData.callId),{status:'done',arrivedAt:serverTimestamp()}).catch(()=>{});await coarsenCallLocation(matchData.callId);}
   await saveHist('done');toast('도착 완료! 즐거운 시간 되세요 🎉');matchData=null;curCallId=null;subShow('u-home');};
 window.cancelMatch=async()=>{
   if(!confirm('정말 매칭을 취소할까요? 매장에 자리를 비워주세요.'))return;
   clearInterval(matchTimer);
   if(matchStatusUnsub){matchStatusUnsub();matchStatusUnsub=null;}
-  if(matchData){const {doc,updateDoc}=NW.fb;await updateDoc(doc(NW.db,'bc_calls',matchData.callId),{status:'cancelled'}).catch(()=>{});await coarsenCallLocation(matchData.callId);}
+  if(matchData){const {doc,updateDoc}=NW.fb;await updateDoc(doc(NW.db,'calls',matchData.callId),{status:'cancelled'}).catch(()=>{});await coarsenCallLocation(matchData.callId);}
   await saveHist('cancelled');
   hideMatchBar();
   matchData=null;curCallId=null;subShow('u-home');
 };
 async function noShow(){
   const {doc,updateDoc,setDoc,Timestamp}=NW.fb;
-  if(matchData){await updateDoc(doc(NW.db,'bc_calls',matchData.callId),{status:'noshow'}).catch(()=>{});await coarsenCallLocation(matchData.callId);}
+  if(matchData){await updateDoc(doc(NW.db,'calls',matchData.callId),{status:'noshow'}).catch(()=>{});await coarsenCallLocation(matchData.callId);}
   penaltyUntil=nowMs()+PENALTY*1000;
-  await setDoc(doc(NW.db,'bc_users',NW.uid),{penaltyUntil:Timestamp.fromMillis(penaltyUntil)},{merge:true}).catch(()=>{});
+  await setDoc(doc(NW.db,'users',NW.uid),{penaltyUntil:Timestamp.fromMillis(penaltyUntil)},{merge:true}).catch(()=>{});
   await saveHist('noshow');matchData=null;curCallId=null;
   toast('시간 초과 — 노쇼 처리되어 30분 패널티가 적용됐어요.');renderPenaltyBanner();subShow('u-home');}
 
 async function saveHist(status){if(!NW.uid)return;
   const {collection,addDoc,serverTimestamp}=NW.fb;
-  await addDoc(collection(NW.db,'bc_users',NW.uid,'history'),{
+  await addDoc(collection(NW.db,'users',NW.uid,'history'),{
     bizId:matchData?.id||matchData?.matchedBizId||'',
     bizName:matchData?.bizName||'-',cat:matchData?.cat||sel.cats?.[0]||'',party:matchData?.party||sel.party,status,at:serverTimestamp()}).catch(()=>{});
   // 포인트 적립/차감
@@ -1544,7 +1543,7 @@ async function awardPoints(delta, reason){
   const {doc,getDoc,setDoc,serverTimestamp,collection,addDoc,increment}=NW.fb;
   try{
     // 사용자 문서에 포인트 누적 (increment 사용)
-    const userRef=doc(NW.db,'bc_users',NW.uid);
+    const userRef=doc(NW.db,'users',NW.uid);
     const inc = NW.fb.increment ? NW.fb.increment(delta) : delta;
     // increment가 없으면 트랜잭션 없이 단순 가산
     if(NW.fb.increment){
@@ -1556,7 +1555,7 @@ async function awardPoints(delta, reason){
       await setDoc(userRef,{points:cur+delta},{merge:true});
     }
     // 포인트 로그 (서브컬렉션)
-    await addDoc(collection(NW.db,'bc_users',NW.uid,'points'),{
+    await addDoc(collection(NW.db,'users',NW.uid,'points'),{
       delta, reason, balance:null, at:serverTimestamp()
     }).catch(()=>{});
     // 토스트로 알림
@@ -1569,7 +1568,7 @@ async function loadPoints(){
   if(!NW.uid) { userPoints=0; }
   else try{
     const {doc,getDoc}=NW.fb;
-    const s=await getDoc(doc(NW.db,'bc_users',NW.uid));
+    const s=await getDoc(doc(NW.db,'users',NW.uid));
     userPoints = (s.exists() && s.data().points) || 0;
   }catch(e){userPoints=0;}
   const el=$('homePoints'); if(el) el.textContent = userPoints.toLocaleString()+' P';
@@ -1581,13 +1580,13 @@ async function renderMy(){
   await renderPointsBlock();
   if(!NW.uid){$('myHist').innerHTML='<div class="muted">로컬 모드</div>';return;}
   const {collection,getDocs,query,orderBy,limit,where}=NW.fb;
-  const snap=await getDocs(query(collection(NW.db,'bc_users',NW.uid,'history'),orderBy('at','desc'),limit(20)));
+  const snap=await getDocs(query(collection(NW.db,'users',NW.uid,'history'),orderBy('at','desc'),limit(20)));
   if(snap.empty){$('myHist').innerHTML='<div class="muted">아직 기록이 없어요.</div>';return;}
   const ST={done:['입장완료','var(--okbg)','var(--ok)'],noshow:['노쇼','var(--nobg)','var(--no)'],cancelled:['취소','var(--bg3)','var(--tx2)']};
   // 1) 내가 쓴 리뷰 미리 조회
   const myReviewed=new Set();
   try{
-    const rSnap=await getDocs(query(collection(NW.db,'bc_reviews'),where('uid','==',NW.uid)));
+    const rSnap=await getDocs(query(collection(NW.db,'reviews'),where('uid','==',NW.uid)));
     rSnap.forEach(d=>myReviewed.add(d.data().bizId));
   }catch(e){}
   $('myHist').innerHTML=snap.docs.map(d=>{const v=d.data();const s=ST[v.status]||ST.cancelled;const c=catOf(v.cat);
@@ -1611,7 +1610,7 @@ async function renderPointsBlock(){
   if(NW.uid){
     try{
       const {collection,getDocs,query,orderBy,limit}=NW.fb;
-      const snap=await getDocs(query(collection(NW.db,'bc_users',NW.uid,'points'),orderBy('at','desc'),limit(10)));
+      const snap=await getDocs(query(collection(NW.db,'users',NW.uid,'points'),orderBy('at','desc'),limit(10)));
       log=snap.docs.map(d=>d.data());
     }catch(e){}
   }
@@ -1644,7 +1643,7 @@ window.openReviewFromHist=async(bizId,bizName)=>{
   if(!bizId){toast('매장 정보가 없어서 리뷰를 쓸 수 없어요');return;}
   try{
     const {doc,getDoc}=NW.fb;
-    const s=await getDoc(doc(NW.db,'bc_biz',bizId));
+    const s=await getDoc(doc(NW.db,'biz',bizId));
     if(!s.exists()){toast('매장을 찾을 수 없어요. 폐업했거나 삭제됐을 수 있어요.');return;}
     showHotDetail({id:bizId,...s.data()});
     // 리뷰 섹션으로 자동 스크롤
@@ -1723,7 +1722,7 @@ function pChk(){const b=$('pBtn');if(b)b.disabled=!($('pName').value.trim()&&pSe
 window.submitPartner=async()=>{
   const {collection,addDoc,serverTimestamp}=NW.fb;
   const menu=$('pMenu').value.split('\n').map(l=>l.trim()).filter(Boolean).map(l=>{const i=l.lastIndexOf(',');if(i<0)return{name:l,price:0};return{name:l.slice(0,i).trim(),price:parseInt(l.slice(i+1).replace(/[^0-9]/g,''))||0};});
-  await addDoc(collection(NW.db,'bc_biz'),{
+  await addDoc(collection(NW.db,'biz'),{
     name:$('pName').value.trim(),cat:pSel.cat,radius:pSel.rad,lat:pLoc.lat,lng:pLoc.lng,status:'open',
     approved:false,ownerId:NW.uid,ownerName:NW.user?.displayName||'',ownerEmail:NW.user?.email||'',
     menu,hours:$('pHours').value.trim(),phone:$('pPhone').value.trim(),parking:false,reservation:true,
@@ -1740,9 +1739,9 @@ window.downloadMyData=async()=>{
   toast('내 데이터를 수집하는 중…');
   const {doc,getDoc,getDocs,collection,query,where,orderBy}=NW.fb;
   try{
-    const u=await getDoc(doc(NW.db,'bc_users',NW.uid));
-    const hist=await getDocs(query(collection(NW.db,'bc_users',NW.uid,'history'),orderBy('at','desc')));
-    const calls=await getDocs(query(collection(NW.db,'bc_calls'),where('callerId','==',NW.uid)));
+    const u=await getDoc(doc(NW.db,'users',NW.uid));
+    const hist=await getDocs(query(collection(NW.db,'users',NW.uid,'history'),orderBy('at','desc')));
+    const calls=await getDocs(query(collection(NW.db,'calls'),where('callerId','==',NW.uid)));
     const data={
       exportedAt:new Date().toISOString(),
       profile:u.exists()?u.data():null,
@@ -1764,9 +1763,9 @@ window.clearMyHistory=async()=>{
   if(!confirm('호출 기록을 모두 삭제할까요?\n(계정은 유지됩니다. 되돌릴 수 없어요.)'))return;
   const {collection,getDocs,deleteDoc,doc}=NW.fb;
   try{
-    const snap=await getDocs(collection(NW.db,'bc_users',NW.uid,'history'));
+    const snap=await getDocs(collection(NW.db,'users',NW.uid,'history'));
     let n=0;
-    for(const d of snap.docs){ await deleteDoc(doc(NW.db,'bc_users',NW.uid,'history',d.id)); n++; }
+    for(const d of snap.docs){ await deleteDoc(doc(NW.db,'users',NW.uid,'history',d.id)); n++; }
     toast(`호출 기록 ${n}건 삭제 완료`);
     renderMy();
   }catch(e){toast('삭제 실패: '+e.message);}
@@ -1779,7 +1778,7 @@ window.deleteAccount=async()=>{
   toast('데이터를 삭제하는 중…');
   try{
     // 1) 진행 중인 호출 취소
-    const active=await getDocs(query(collection(NW.db,'bc_calls'),where('callerId','==',NW.uid)));
+    const active=await getDocs(query(collection(NW.db,'calls'),where('callerId','==',NW.uid)));
     for(const d of active.docs){
       const s=d.data().status;
       if(s==='searching'||s==='matched'){
@@ -1787,10 +1786,10 @@ window.deleteAccount=async()=>{
       }
     }
     // 2) history 서브컬렉션 삭제
-    const hist=await getDocs(collection(NW.db,'bc_users',NW.uid,'history'));
+    const hist=await getDocs(collection(NW.db,'users',NW.uid,'history'));
     for(const d of hist.docs){ await deleteDoc(d.ref).catch(()=>{}); }
     // 3) 프로필 문서 삭제
-    await deleteDoc(doc(NW.db,'bc_users',NW.uid)).catch(()=>{});
+    await deleteDoc(doc(NW.db,'users',NW.uid)).catch(()=>{});
     // 4) Firebase Auth 계정 삭제 시도 (재인증 필요할 수 있음)
     try{
       if(NW.user && NW.user.delete) await NW.user.delete();
