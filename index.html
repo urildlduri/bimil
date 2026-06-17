@@ -51,11 +51,12 @@
 
   <!-- 로그인 폼 -->
   <div id="loginForm" style="margin-top:28px">
-    <input class="auth-inp" id="liEmail" type="email" placeholder="이메일" autocomplete="email">
+    <input class="auth-inp" id="liId" type="text" placeholder="아이디" autocomplete="username">
     <input class="auth-inp" id="liPw" type="password" placeholder="비밀번호" autocomplete="current-password">
-    <button class="cta" onclick="doEmailLogin()">로그인</button>
-    <div style="text-align:center;margin-top:18px">
-      <button class="auth-link" onclick="forgotPw()">비밀번호를 잊으셨나요?</button>
+    <button class="cta" onclick="doUserIdLogin()">로그인</button>
+    <div style="text-align:center;margin-top:18px;padding:14px;background:var(--bg2);border:1px solid var(--bd);border-radius:var(--rad)">
+      <div style="font-size:12px;color:var(--tx2);font-weight:600;margin-bottom:4px">🔒 완전 익명 시스템</div>
+      <div style="font-size:11px;color:var(--tx3);line-height:1.6">이메일·실명을 받지 않아 비밀번호 분실 시<br>계정 복구가 불가능합니다. 비밀번호를 잘 보관해주세요.</div>
     </div>
   </div>
 
@@ -70,13 +71,14 @@
       </div>
       <button class="reroll" onclick="rerollSignupNick()">🎲 다시</button>
     </div>
-    <div class="auth-help">실명 대신 이 닉네임이 사용돼요. 가입 후 MY에서 변경 가능합니다.</div>
+    <div class="auth-help">매장과 커뮤니티에 표시되는 이름입니다. 가입 후 MY에서 변경 가능.</div>
 
-    <input class="auth-inp" id="suEmail" type="email" placeholder="이메일" autocomplete="email">
-    <div class="auth-help">비밀번호 찾기에 사용됩니다. 다른 곳에 노출되지 않습니다.</div>
+    <input class="auth-inp" id="suId" type="text" placeholder="아이디 (영문/숫자/_, 4~16자)" autocomplete="username" maxlength="16">
+    <div class="auth-help">로그인할 때 사용합니다. 한 번 정하면 변경 불가.</div>
 
     <input class="auth-inp" id="suPw" type="password" placeholder="비밀번호 (8자 이상)" autocomplete="new-password">
     <input class="auth-inp" id="suPw2" type="password" placeholder="비밀번호 확인" autocomplete="new-password">
+    <div class="auth-help" style="color:var(--no)">⚠️ 분실 시 복구 불가. 안전한 곳에 보관하세요.</div>
 
     <div class="field-lb" style="margin-top:14px">생년월일 (만 19세 이상)</div>
     <div class="auth-row">
@@ -103,7 +105,7 @@
   </div>
 
   <div style="margin-top:24px;padding:12px;background:var(--bg2);border:1px solid var(--bd);border-radius:10px;font-size:11px;color:var(--tx3);line-height:1.6;text-align:center">
-    🔒 완전 익명 보장 · 실명·연락처 비공개 · 합법 업소만 등록
+    🔒 완전 익명 보장 · 이메일·실명 비공개 · 합법 업소만 등록
   </div>
 </div>
 </section>
@@ -140,12 +142,18 @@ window.rerollSignupNick=()=>{
   $('suNick').textContent = signupNick;
 };
 
-window.doEmailLogin=async()=>{
-  const email = $('liEmail').value.trim();
+window.doUserIdLogin=async()=>{
+  const id = $('liId').value.trim();
   const pw = $('liPw').value;
-  if(!email || !pw){ toast('이메일과 비밀번호를 입력해주세요'); return; }
+  if(!id || !pw){ toast('아이디와 비밀번호를 입력해주세요'); return; }
   try{
-    const u = await NW.emailLogin(email, pw);
+    let u;
+    // 관리자 이메일이면 이메일로 로그인 (admin 계정 호환)
+    if(id.includes('@')){
+      u = await NW.emailLogin(id, pw);
+    }else{
+      u = await NW.userIdLogin(id, pw);
+    }
     await afterLogin(u);
   }catch(e){
     const msg = errMsg(e.code) || e.message;
@@ -154,14 +162,14 @@ window.doEmailLogin=async()=>{
 };
 
 window.doSignup=async()=>{
-  const email = $('suEmail').value.trim();
+  const userId = $('suId').value.trim();
   const pw = $('suPw').value;
   const pw2 = $('suPw2').value;
   const by = parseInt($('suBy').value);
   const bm = parseInt($('suBm').value);
   const bd = parseInt($('suBd').value);
 
-  if(!email || !email.includes('@')){ toast('올바른 이메일을 입력해주세요'); return; }
+  if(!/^[a-zA-Z0-9_]{4,16}$/.test(userId)){ toast('아이디는 영문/숫자/_ 4~16자여야 합니다'); return; }
   if(pw.length < 8){ toast('비밀번호는 8자 이상이어야 합니다'); return; }
   if(pw !== pw2){ toast('비밀번호가 일치하지 않습니다'); return; }
   if(!by || by < 1920 || by > new Date().getFullYear()){ toast('출생연도를 확인해주세요'); return; }
@@ -173,7 +181,7 @@ window.doSignup=async()=>{
   if(!signupNick) rerollSignupNick();
 
   try{
-    const u = await NW.emailSignup({email, password:pw, nickname:signupNick, birthYear:by});
+    const u = await NW.userIdSignup({userId, password:pw, nickname:signupNick, birthYear:by});
     toast('🎉 가입 완료! 환영합니다, '+signupNick);
     setTimeout(()=>afterLogin(u), 600);
   }catch(e){
@@ -182,26 +190,14 @@ window.doSignup=async()=>{
   }
 };
 
-window.forgotPw=async()=>{
-  const email = $('liEmail').value.trim() || prompt('비밀번호 재설정 링크를 받을 이메일을 입력하세요:');
-  if(!email) return;
-  try{
-    await NW.resetPassword(email);
-    toast('📧 재설정 링크를 이메일로 보냈어요');
-  }catch(e){
-    const msg = errMsg(e.code) || e.message;
-    toast('실패: '+msg);
-  }
-};
-
 function errMsg(code){
   const map = {
-    'auth/email-already-in-use':'이미 가입된 이메일입니다',
-    'auth/invalid-email':'이메일 형식이 올바르지 않습니다',
+    'auth/email-already-in-use':'이미 사용 중인 아이디입니다',
+    'auth/invalid-email':'아이디 형식이 올바르지 않습니다',
     'auth/weak-password':'비밀번호가 너무 약합니다 (8자 이상)',
-    'auth/user-not-found':'등록되지 않은 이메일입니다',
+    'auth/user-not-found':'등록되지 않은 아이디입니다',
     'auth/wrong-password':'비밀번호가 일치하지 않습니다',
-    'auth/invalid-credential':'이메일 또는 비밀번호가 올바르지 않습니다',
+    'auth/invalid-credential':'아이디 또는 비밀번호가 올바르지 않습니다',
     'auth/too-many-requests':'너무 많은 시도가 있었어요. 잠시 후 다시 시도해주세요',
     'auth/network-request-failed':'네트워크 오류. 인터넷 연결을 확인해주세요'
   };

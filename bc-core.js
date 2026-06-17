@@ -187,22 +187,46 @@ NW.genNickname = function(){
 };
 
 /* ── 이메일/비밀번호 회원가입 ── */
-NW.emailSignup = async function({email, password, nickname, birthYear}){
+/* ── 아이디/비밀번호 회원가입
+   Firebase는 이메일 기반이라 내부적으로 {userId}@bimilcall.local 가짜 이메일 사용 ── */
+NW.userIdToFakeEmail = function(userId){
+  return userId.toLowerCase().trim() + '@bimilcall.local';
+};
+
+NW.userIdSignup = async function({userId, password, nickname, birthYear}){
   await NW.fbReady;
   if(!NW.fbLoaded) throw new Error('firebase not loaded');
+  // 아이디 검증
+  if(!/^[a-zA-Z0-9_]{4,16}$/.test(userId)) throw new Error('아이디는 영문/숫자/_ 4~16자여야 합니다');
   // 만 19세 검증
   const age = new Date().getFullYear() - parseInt(birthYear);
   if(age < 19) throw new Error('만 19세 이상만 가입 가능합니다');
-  const {createUserWithEmailAndPassword, updateProfile} = NW.fb;
-  const res = await createUserWithEmailAndPassword(NW.auth, email, password);
-  // displayName에 닉네임 박기
+  // 아이디 중복 체크 (users 컬렉션의 userId 필드)
+  const {collection, query, where, getDocs, createUserWithEmailAndPassword, updateProfile} = NW.fb;
+  const dupSnap = await getDocs(query(collection(NW.db,'users'), where('userId','==',userId.toLowerCase().trim())));
+  if(!dupSnap.empty) throw new Error('이미 사용 중인 아이디입니다');
+
+  const fakeEmail = NW.userIdToFakeEmail(userId);
+  const res = await createUserWithEmailAndPassword(NW.auth, fakeEmail, password);
   if(updateProfile) await updateProfile(res.user, {displayName: nickname});
   NW.uid = res.user.uid; NW.user = res.user;
-  await NW.ensureProfile(res.user, {nickname, birthYear});
+  await NW.ensureProfile(res.user, {userId: userId.toLowerCase().trim(), nickname, birthYear});
   return res.user;
 };
 
-/* ── 이메일/비밀번호 로그인 ── */
+/* ── 아이디/비밀번호 로그인 ── */
+NW.userIdLogin = async function(userId, password){
+  await NW.fbReady;
+  if(!NW.fbLoaded) throw new Error('firebase not loaded');
+  const {signInWithEmailAndPassword} = NW.fb;
+  const fakeEmail = NW.userIdToFakeEmail(userId);
+  const res = await signInWithEmailAndPassword(NW.auth, fakeEmail, password);
+  NW.uid = res.user.uid; NW.user = res.user;
+  await NW.ensureProfile(res.user);
+  return res.user;
+};
+
+/* ── 관리자 로그인용 — 이메일 직접 입력 (기존 admin 계정 호환) ── */
 NW.emailLogin = async function(email, password){
   await NW.fbReady;
   if(!NW.fbLoaded) throw new Error('firebase not loaded');
@@ -280,6 +304,7 @@ NW.ensureProfile = async function(u, extra){
   const s=await getDoc(ref);
   if(!s.exists()){
     const profile = {
+      userId: extra?.userId || null,
       email: u.email||'',
       nickname: extra?.nickname || u.displayName || NW.genNickname(),
       birthYear: extra?.birthYear || null,
@@ -292,7 +317,6 @@ NW.ensureProfile = async function(u, extra){
     NW.profile = profile;
   }else{
     NW.profile = s.data();
-    // 닉네임 없으면 자동 생성해서 보충
     if(!NW.profile.nickname){
       const nick = NW.genNickname();
       await setDoc(ref, {nickname:nick}, {merge:true});
