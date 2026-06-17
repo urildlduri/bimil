@@ -224,7 +224,7 @@ window.addMember=async()=>{
   const next=[...list,em];
   const {doc,updateDoc}=NW.fb;
   try{
-    await updateDoc(doc(NW.db,'bc_biz',myBizId),{memberEmails:next});
+    await updateDoc(doc(NW.db,'biz',myBizId),{memberEmails:next});
     myBiz.memberEmails=next; $('memEmail').value=''; toast('✓ 직원 추가 완료'); renderMembers();
   }catch(e){
     console.error('직원 추가 실패:',e);
@@ -236,7 +236,7 @@ window.removeMember=async(em)=>{
   const next=(myBiz.memberEmails||[]).filter(x=>x!==em);
   const {doc,updateDoc}=NW.fb;
   try{
-    await updateDoc(doc(NW.db,'bc_biz',myBizId),{memberEmails:next});
+    await updateDoc(doc(NW.db,'biz',myBizId),{memberEmails:next});
     myBiz.memberEmails=next; toast('제거 완료'); renderMembers();
   }catch(e){toast('실패: '+e.message);}
 };
@@ -306,7 +306,7 @@ window.saveEdit=async()=>{
     photo:$('ePhoto').value.trim(),website:$('eWebsite').value.trim(),menu,hours:$('eHours').value.trim(),phone:$('ePhone').value.trim(),
     parking:$('eParking').classList.contains('on'),reservation:$('eReserv').classList.contains('on')};
   const {doc,updateDoc}=NW.fb;
-  await updateDoc(doc(NW.db,'bc_biz',myBizId),patch).catch(e=>{toast('저장 실패: '+e.message);throw e;});
+  await updateDoc(doc(NW.db,'biz',myBizId),patch).catch(e=>{toast('저장 실패: '+e.message);throw e;});
   myBiz={...myBiz,...patch};
   // 업종/반경/위치 바뀌었으니 리스너 재시작
   if(callsUnsub)callsUnsub();
@@ -317,7 +317,7 @@ let arrUnsub=null, arrivals=[], arrTimer=null;
 function listenArrivals(){
   const {collection,query,where,onSnapshot}=NW.fb;
   console.log('[listenArrivals] 시작 — myBizId:', myBizId);
-  const q=query(collection(NW.db,'bc_calls'),where('matchedBizId','==',myBizId));
+  const q=query(collection(NW.db,'calls'),where('matchedBizId','==',myBizId));
   arrUnsub=onSnapshot(q,snap=>{
     const all=snap.docs.map(d=>({id:d.id,...d.data()}));
     arrivals=all.filter(c=>['accepted','going','matched'].includes(c.status));
@@ -347,7 +347,7 @@ async function loadMonthStats(){
   try{
     const {collection,query,where,getDocs}=NW.fb;
     // 매칭된 호출 전체
-    const matchedSnap=await getDocs(query(collection(NW.db,'bc_calls'),where('matchedBizId','==',myBizId)));
+    const matchedSnap=await getDocs(query(collection(NW.db,'calls'),where('matchedBizId','==',myBizId)));
     let mMatch=0, mDone=0, mNoshow=0;     // 이번 달
     let aMatch=0, aDone=0, aNoshow=0;     // 누적
     matchedSnap.forEach(d=>{
@@ -451,7 +451,7 @@ window.confirmArrival=async(callId)=>{
   console.log('매장 ownerId:', myBiz?.ownerId, '→ 나와 같음?', myBiz?.ownerId===u?.uid);
   console.log('==============');
   try{
-    await updateDoc(doc(NW.db,'bc_calls',callId),{status:'done',arrivedAt:serverTimestamp()});
+    await updateDoc(doc(NW.db,'calls',callId),{status:'done',arrivedAt:serverTimestamp()});
     toast('🎉 도착 확인 완료');
   }catch(e){
     console.error('[confirmArrival] 실패:',e);
@@ -463,7 +463,7 @@ window.markNoShow=async(callId)=>{
   const name=c?.callerName||'이 손님';
   if(!confirm(`${name}을(를) 노쇼 처리할까요? (손님에게 패널티 적용)`))return;
   const {doc,updateDoc}=NW.fb;
-  try{ await updateDoc(doc(NW.db,'bc_calls',callId),{status:'noshow'}); toast('노쇼 처리됨'); }
+  try{ await updateDoc(doc(NW.db,'calls',callId),{status:'noshow'}); toast('노쇼 처리됨'); }
   catch(e){toast('실패: '+e.message);}
 };
 window.setBizStatus=async(s,silent)=>{
@@ -471,14 +471,14 @@ window.setBizStatus=async(s,silent)=>{
   $('st-open').classList.toggle('on',s==='open');
   $('st-busy').classList.toggle('on',s==='busy');
   $('st-close').classList.toggle('on',s==='closed');
-  if(myBizId){const {doc,updateDoc}=NW.fb;await updateDoc(NW.fb.doc(NW.db,'bc_biz',myBizId),{status:s}).catch(()=>{});}
+  if(myBizId){const {doc,updateDoc}=NW.fb;await updateDoc(NW.fb.doc(NW.db,'biz',myBizId),{status:s}).catch(()=>{});}
   if(!silent)toast(s==='open'?'영업중으로 변경':s==='busy'?'혼잡 상태로 변경':'마감 처리');
 };
 function listenCalls(){
   const {collection,query,where,onSnapshot}=NW.fb;
   // 단일 where(cat)만 사용 → 복합 인덱스 불필요. status는 클라이언트에서 필터.
   // 새 호출은 cats[] 배열로 저장됨. array-contains로 매칭. (구 호출도 cat=cats[0]이라 별도 처리 X)
-  const q=query(collection(NW.db,'bc_calls'),where('cats','array-contains',myBiz.cat));
+  const q=query(collection(NW.db,'calls'),where('cats','array-contains',myBiz.cat));
   callsUnsub=onSnapshot(q,snap=>{
     const list=[];
     snap.forEach(d=>{const c={id:d.id,...d.data()};
@@ -608,10 +608,10 @@ function startCallTimer(id,exp){if(callTimers[id])return;
     const left=(exp-nowMs())/1000;el.textContent='⏱ '+fmtT(left)+' 남음';if(left<=0){clearInterval(callTimers[id]);delete callTimers[id];}},500);}
 window.respond=async(callId,type)=>{
   const {doc,getDoc,setDoc,updateDoc,onSnapshot,serverTimestamp,Timestamp}=NW.fb;
-  const cs=await getDoc(doc(NW.db,'bc_calls',callId));
+  const cs=await getDoc(doc(NW.db,'calls',callId));
   if(!cs.exists()||cs.data().status!=='searching'){toast('이미 마감된 호출이에요.');return;}
   const cd=cs.data();const realDist=haversine(myBiz,{lat:cd.lat,lng:cd.lng});
-  await setDoc(doc(NW.db,'bc_calls',callId,'responses',myBizId),{bizId:myBizId,bizName:myBiz.name,cat:myBiz.cat,type,dist:realDist,
+  await setDoc(doc(NW.db,'calls',callId,'responses',myBizId),{bizId:myBizId,bizName:myBiz.name,cat:myBiz.cat,type,dist:realDist,
     responderUid:NW.uid, responderName:NW.user?.displayName||'', responderEmail:NW.user?.email||'',
     at:serverTimestamp()});
   respondedCalls.add(callId);
@@ -619,7 +619,7 @@ window.respond=async(callId,type)=>{
   // 핫플 직접호출(directBizId 있음) + '가능' 응답이면 'accepted' 상태로 (사용자 '갈게요' 대기)
   if(type==='ok' && cd.directBizId===myBizId){
     const goingDeadline=Timestamp.fromMillis(nowMs()+30*1000);
-    await updateDoc(doc(NW.db,'bc_calls',callId),{
+    await updateDoc(doc(NW.db,'calls',callId),{
       status:'accepted', matchedBizId:myBizId, matchedBizName:myBiz.name,
       acceptedAt:serverTimestamp(), goingDeadline
     }).catch(()=>{});
@@ -627,7 +627,7 @@ window.respond=async(callId,type)=>{
   }else{
     toast(type==='ok'?'「가능」 응답 전송':type==='soon'?'「10분 후」 응답 전송':'「불가」 응답');
   }
-  const un=onSnapshot(doc(NW.db,'bc_calls',callId),s=>{if(!s.exists())return;const d=s.data();
+  const un=onSnapshot(doc(NW.db,'calls',callId),s=>{if(!s.exists())return;const d=s.data();
     if(d.status==='matched'&&d.matchedBizId===myBizId){un();}
     else if(d.status==='matched'&&d.matchedBizId!==myBizId){toast('아쉽게도 다른 매장으로 매칭됐어요.');un();}
     else if(['expired','cancelled','done','noshow'].includes(d.status))un();});

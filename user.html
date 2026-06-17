@@ -226,6 +226,8 @@
     <div class="page">
       <div class="h1">MY</div>
       <div id="myStatus"></div>
+      <div class="h2" style="margin-top:24px">🎭 내 닉네임</div>
+      <div id="myNickBox"></div>
       <div class="h2" style="margin-top:24px">🏆 포인트</div>
       <div id="myPoints"></div>
       <div class="h2" style="margin-top:24px">호출 기록</div>
@@ -875,7 +877,7 @@ window.directCall=async()=>{
   const expires=Timestamp.fromMillis(nowMs()+DIRECT_TTL*1000);
   try{
     const ref=await addDoc(collection(NW.db,'calls'),{
-      callerId:NW.uid, callerName:NW.user?.displayName||'', party:dcParty,
+      callerId:NW.uid, callerName:(NW.profile?.nickname || NW.user?.displayName || '익명'), party:dcParty,
       cats:[b.cat], cat:b.cat,
       lat:myLoc.lat, lng:myLoc.lng,
       directBizId:b.id, directBizName:b.name,   // 1:1 호출 표시
@@ -1097,7 +1099,7 @@ window.submitReview=async(bizId)=>{
     const isNew = !existing.exists();
     await setDoc(doc(NW.db,'reviews',reviewId),{
       bizId, bizName:curHotBiz?.name||'', uid:NW.uid,
-      userName:NW.user?.displayName||'', rating:rvRating, text, at:serverTimestamp()
+      userName:(NW.profile?.nickname || NW.user?.displayName || '익명'), rating:rvRating, text, at:serverTimestamp()
     });
     // 매장 평균 갱신
     await updateBizRating(bizId);
@@ -1206,7 +1208,7 @@ window.startCall=async()=>{
   const {collection,addDoc,serverTimestamp,Timestamp}=NW.fb;
   const expires=Timestamp.fromMillis(nowMs()+CALL_TTL*1000);
   const ref=await addDoc(collection(NW.db,'calls'),{
-    callerId:NW.uid, callerName:NW.user?.displayName||'', party:sel.party,
+    callerId:NW.uid, callerName:(NW.profile?.nickname || NW.user?.displayName || '익명'), party:sel.party,
     cats:sel.cats, cat:sel.cats[0],   // 다중 + 구버전 호환
     lat:myLoc.lat, lng:myLoc.lng,
     status:'searching', createdAt:serverTimestamp(), expiresAt:expires});
@@ -1576,6 +1578,7 @@ async function loadPoints(){
 
 async function renderMy(){
   renderPenaltyBannerMy();
+  renderMyNick();
   await loadPoints();
   await renderPointsBlock();
   if(!NW.uid){$('myHist').innerHTML='<div class="muted">로컬 모드</div>';return;}
@@ -1633,6 +1636,36 @@ async function renderPointsBlock(){
     </div>`;
 }
 
+function renderMyNick(){
+  const nick = (NW.profile?.nickname) || NW.user?.displayName || '익명';
+  $('myNickBox').innerHTML = `
+    <div class="statbox" style="margin-top:0;display:flex;align-items:center;gap:14px">
+      <div style="font-size:36px">🎭</div>
+      <div style="flex:1">
+        <div style="font-size:11px;color:var(--tx3);font-weight:700">현재 닉네임</div>
+        <div style="font-size:18px;font-weight:800;color:var(--y);margin-top:2px">${nick}</div>
+        <div style="font-size:11px;color:var(--tx3);margin-top:4px">매장과 커뮤니티에 이 이름으로 표시돼요</div>
+      </div>
+      <button onclick="openChangeNick()" style="background:var(--bg3);color:var(--y);border:1px solid var(--y);padding:8px 12px;font-size:12px;font-weight:700;border-radius:8px">✏️ 변경</button>
+    </div>`;
+}
+window.openChangeNick=()=>{
+  const cur = NW.profile?.nickname || '';
+  const suggested = NW.genNickname();
+  const newNick = prompt(`새 닉네임을 입력하세요.\n비워두면 자동 생성: ${suggested}\n\n현재: ${cur}`, suggested);
+  if(newNick===null) return;
+  const trimmed = (newNick||suggested).trim();
+  if(trimmed.length < 2 || trimmed.length > 20){ toast('닉네임은 2~20자여야 합니다'); return; }
+  changeNick(trimmed);
+};
+async function changeNick(newNick){
+  try{
+    await NW.updateNickname(newNick);
+    toast('✓ 닉네임 변경 완료');
+    renderMyNick();
+  }catch(e){toast('실패: '+e.message);}
+}
+
 function renderPenaltyBannerMy(){const el=$('myStatus');
   if(penalActive()){const left=Math.ceil((penaltyUntil-nowMs())/60000);
     el.innerHTML=`<div class="penalty"><div class="pi">⛔</div><div><b>노쇼 패널티 적용 중</b><div class="pt">약 ${left}분 후 해제</div></div></div>`;}
@@ -1652,10 +1685,6 @@ window.openReviewFromHist=async(bizId,bizName)=>{
     }, 300);
   }catch(e){toast('실패: '+e.message);}
 };
-function renderPenaltyBannerMy(){const el=$('myStatus');
-  if(penalActive()){const left=Math.ceil((penaltyUntil-nowMs())/60000);
-    el.innerHTML=`<div class="penalty"><div class="pi">⛔</div><div><b>노쇼 패널티 적용 중</b><div class="pt">약 ${left}분 후 해제</div></div></div>`;}
-  else el.innerHTML=`<div class="statbox"><b style="color:var(--ok)">✓ 정상 이용 가능</b><div class="muted" style="margin-top:6px">패널티 없음</div></div>`;}
 /* ── 매장 파트너 ── */
 let pSel={cat:null,rad:1000}, pLoc=null;
 async function renderPartner(){

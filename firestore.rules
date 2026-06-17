@@ -8,7 +8,7 @@ service cloud.firestore {
     }
     function signedIn() { return request.auth != null; }
 
-    match /bc_users/{uid} {
+    match /users/{uid} {
       allow read: if signedIn();
       allow create, update: if request.auth.uid == uid;
       allow delete: if isAdmin();
@@ -17,7 +17,7 @@ service cloud.firestore {
       }
     }
 
-    match /bc_biz/{id} {
+    match /biz/{id} {
       allow read: if signedIn();
       allow create: if signedIn()
         && request.resource.data.ownerId == request.auth.uid
@@ -38,7 +38,7 @@ service cloud.firestore {
     }
 
     // 리뷰 (1매장 1사용자 — 문서 id가 bizId_uid)
-    match /bc_reviews/{rid} {
+    match /reviews/{rid} {
       allow read: if signedIn();
       allow create, update: if signedIn()
         && request.resource.data.uid == request.auth.uid;
@@ -46,7 +46,7 @@ service cloud.firestore {
         || (signedIn() && resource.data.uid == request.auth.uid);
     }
 
-    match /bc_calls/{id} {
+    match /calls/{id} {
       allow read: if signedIn();
       allow create: if signedIn()
         && request.resource.data.callerId == request.auth.uid;
@@ -68,7 +68,7 @@ service cloud.firestore {
 
     // 익명 커뮤니티 — 로그인 사용자 누구나 읽기, 작성은 본인 uid 강제,
     // 수정·삭제는 작성자 본인 또는 관리자
-    match /bc_community/{postId} {
+    match /community/{postId} {
       allow read: if signedIn();
       allow create: if signedIn()
         && request.resource.data.uid == request.auth.uid

@@ -150,9 +150,11 @@ NW.fbReady = (async()=>{
     const Au = await import(FB_BASE+"firebase-auth.js");
     const F  = await import(FB_BASE+"firebase-firestore.js");
     Object.assign(NW.fb, {
-      getAuth:Au.getAuth, signInAnonymously:Au.signInAnonymously, onAuthStateChanged:Au.onAuthStateChanged,
-      GoogleAuthProvider:Au.GoogleAuthProvider, signInWithPopup:Au.signInWithPopup, signOut:Au.signOut,
-      signInWithRedirect:Au.signInWithRedirect, getRedirectResult:Au.getRedirectResult,
+      getAuth:Au.getAuth, onAuthStateChanged:Au.onAuthStateChanged, signOut:Au.signOut,
+      createUserWithEmailAndPassword:Au.createUserWithEmailAndPassword,
+      signInWithEmailAndPassword:Au.signInWithEmailAndPassword,
+      sendPasswordResetEmail:Au.sendPasswordResetEmail,
+      updateProfile:Au.updateProfile,
       collection:F.collection, collectionGroup:F.collectionGroup, doc:F.doc, addDoc:F.addDoc, setDoc:F.setDoc, updateDoc:F.updateDoc,
       getDoc:F.getDoc, getDocs:F.getDocs, query:F.query, where:F.where, onSnapshot:F.onSnapshot,
       serverTimestamp:F.serverTimestamp, deleteDoc:F.deleteDoc, orderBy:F.orderBy, limit:F.limit, Timestamp:F.Timestamp, increment:F.increment
@@ -173,43 +175,61 @@ NW.fbReady = (async()=>{
 
 if(!NW.cfgOk){const w=NW.$('cfgWarn');if(w)w.classList.remove('hide');}
 
-/* ── 관리자 이메일 화이트리스트 ── */
-NW.ADMIN_EMAILS = ["urildlduri@gmail.com"];
+/* ── 관리자 이메일 화이트리스트 (2인 운영) ── */
+NW.ADMIN_EMAILS = ["urildlduri@gmail.com", "liferefix@naver.com"];
 
-/* ── 익명 인증 (사용 안 함 — 구글 로그인으로 대체) ── */
-NW.ensureAuth = async function(){
-  if(!NW.cfgOk) return null;
-  await NW.fbReady;
-  if(!NW.fbLoaded) return null;
-  if(NW.uid) return NW.uid;
-  return new Promise(res=>{
-    NW.fb.onAuthStateChanged(NW.auth,u=>{
-      if(u){NW.uid=u.uid;NW.user=u;res(u.uid);} else res(null);
-    });
-  });
+/* ── 닉네임 자동 생성 풀 ── */
+NW.NICK_PREFIXES = ['달림이','강남신사','역삼남','선릉형','논현러','홍대왕자','압구정고수','청담VIP','신사동신선','강남토박이','밤문화박사','VIP고객','단골손님','강남러','테헤란초보'];
+NW.genNickname = function(){
+  const p = NW.NICK_PREFIXES[Math.floor(Math.random()*NW.NICK_PREFIXES.length)];
+  const n = Math.floor(1000+Math.random()*9000);
+  return `${p}#${n}`;
 };
 
-/* ── 구글 로그인 (리다이렉트 방식 — GitHub Pages COOP 회피) ── */
-NW.googleLogin = async function(){
+/* ── 이메일/비밀번호 회원가입 ── */
+NW.emailSignup = async function({email, password, nickname, birthYear}){
   await NW.fbReady;
   if(!NW.fbLoaded) throw new Error('firebase not loaded');
-  const {GoogleAuthProvider,signInWithRedirect,signInWithPopup}=NW.fb;
-  const provider=new GoogleAuthProvider();
-  // 팝업 먼저 시도, COOP 등으로 막히면 리다이렉트로 폴백
-  try{
-    const res=await signInWithPopup(NW.auth,provider);
-    NW.uid=res.user.uid; NW.user=res.user;
-    await NW.ensureProfile(res.user);
-    return res.user;
-  }catch(e){
-    if(e.code==='auth/popup-blocked' || e.code==='auth/cancelled-popup-request'
-       || e.code==='auth/popup-closed-by-user' || String(e.message||'').includes('Cross-Origin')){
-      await signInWithRedirect(NW.auth,provider); // 페이지 이동 → 돌아오면 onAuth가 처리
-      return null;
-    }
-    throw e;
-  }
+  // 만 19세 검증
+  const age = new Date().getFullYear() - parseInt(birthYear);
+  if(age < 19) throw new Error('만 19세 이상만 가입 가능합니다');
+  const {createUserWithEmailAndPassword, updateProfile} = NW.fb;
+  const res = await createUserWithEmailAndPassword(NW.auth, email, password);
+  // displayName에 닉네임 박기
+  if(updateProfile) await updateProfile(res.user, {displayName: nickname});
+  NW.uid = res.user.uid; NW.user = res.user;
+  await NW.ensureProfile(res.user, {nickname, birthYear});
+  return res.user;
 };
+
+/* ── 이메일/비밀번호 로그인 ── */
+NW.emailLogin = async function(email, password){
+  await NW.fbReady;
+  if(!NW.fbLoaded) throw new Error('firebase not loaded');
+  const {signInWithEmailAndPassword} = NW.fb;
+  const res = await signInWithEmailAndPassword(NW.auth, email, password);
+  NW.uid = res.user.uid; NW.user = res.user;
+  await NW.ensureProfile(res.user);
+  return res.user;
+};
+
+/* ── 비밀번호 재설정 ── */
+NW.resetPassword = async function(email){
+  await NW.fbReady;
+  if(!NW.fbLoaded) throw new Error('firebase not loaded');
+  const {sendPasswordResetEmail} = NW.fb;
+  return sendPasswordResetEmail(NW.auth, email);
+};
+
+/* ── 닉네임 변경 ── */
+NW.updateNickname = async function(newNick){
+  if(!NW.uid) throw new Error('not signed in');
+  const {doc, setDoc, updateProfile} = NW.fb;
+  await setDoc(doc(NW.db,'users',NW.uid),{nickname:newNick},{merge:true});
+  if(updateProfile && NW.user) await updateProfile(NW.user, {displayName: newNick});
+  if(NW.profile) NW.profile.nickname = newNick;
+};
+
 NW.logout = async function(){
   await NW.fbReady; if(NW.fb.signOut) await NW.fb.signOut(NW.auth);
   location.href='index.html';
@@ -219,20 +239,19 @@ NW.logout = async function(){
 NW.mountAccount = function(containerId){
   const el=NW.$(containerId); if(!el||!NW.user)return;
   const u=NW.user;
-  const initial=(u.displayName||u.email||'U').trim().charAt(0).toUpperCase();
-  const avatar=u.photoURL
-    ? `<img src="${u.photoURL}" style="width:30px;height:30px;border-radius:50%">`
-    : `<div style="width:30px;height:30px;border-radius:50%;background:var(--y);color:#000;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px">${initial}</div>`;
+  const nick = (NW.profile?.nickname) || u.displayName || '익명';
+  const initial = nick.trim().charAt(0).toUpperCase();
+  const avatar = `<div style="width:30px;height:30px;border-radius:50%;background:var(--y);color:#000;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px">${initial}</div>`;
   el.style.position='relative';
   el.innerHTML=`
     <button id="nwAcctBtn" style="background:var(--bg2);border:1px solid var(--bd);border-radius:30px;padding:4px 10px 4px 4px;display:flex;align-items:center;gap:8px">
-      ${avatar}<span style="font-size:13px;font-weight:700;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${u.displayName||u.email}</span>
+      ${avatar}<span style="font-size:13px;font-weight:700;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--y)">${nick}</span>
       <span style="color:var(--tx3);font-size:10px">▼</span>
     </button>
     <div id="nwAcctMenu" class="hide" style="position:absolute;right:0;top:46px;background:var(--bg2);border:1px solid var(--bd);border-radius:12px;padding:8px;min-width:200px;z-index:120;box-shadow:0 8px 24px rgba(0,0,0,.4)">
       <div style="padding:10px 12px;border-bottom:1px solid var(--bd);margin-bottom:6px">
-        <div style="font-size:13px;font-weight:700">${u.displayName||''}</div>
-        <div style="font-size:12px;color:var(--tx3);font-family:var(--mono);margin-top:2px">${u.email||''}</div>
+        <div style="font-size:13px;font-weight:800;color:var(--y)">🎭 ${nick}</div>
+        <div style="font-size:11px;color:var(--tx3);margin-top:2px">완전 익명</div>
       </div>
       <button onclick="NW.logout()" style="width:100%;text-align:left;background:none;padding:10px 12px;border-radius:8px;font-size:14px;font-weight:600;color:var(--no)">로그아웃</button>
     </div>`;
@@ -254,16 +273,32 @@ NW.onAuth = function(cb){
   });
 };
 
-/* 프로필 문서 생성/조회 (bc_users/{uid}) */
-NW.ensureProfile = async function(u){
+/* 프로필 문서 생성/조회 (users/{uid}) */
+NW.ensureProfile = async function(u, extra){
   const {doc,getDoc,setDoc,serverTimestamp}=NW.fb;
-  const ref=doc(NW.db,'bc_users',u.uid);
+  const ref=doc(NW.db,'users',u.uid);
   const s=await getDoc(ref);
   if(!s.exists()){
-    await setDoc(ref,{name:u.displayName||'',email:u.email||'',photo:u.photoURL||'',
-      role:'user', createdAt:serverTimestamp()});
-    NW.profile={name:u.displayName||'',email:u.email||'',role:'user'};
-  }else NW.profile=s.data();
+    const profile = {
+      email: u.email||'',
+      nickname: extra?.nickname || u.displayName || NW.genNickname(),
+      birthYear: extra?.birthYear || null,
+      role: 'user',
+      points: 0,
+      createdAt: serverTimestamp(),
+      termsAgreedAt: serverTimestamp()
+    };
+    await setDoc(ref, profile);
+    NW.profile = profile;
+  }else{
+    NW.profile = s.data();
+    // 닉네임 없으면 자동 생성해서 보충
+    if(!NW.profile.nickname){
+      const nick = NW.genNickname();
+      await setDoc(ref, {nickname:nick}, {merge:true});
+      NW.profile.nickname = nick;
+    }
+  }
   return NW.profile;
 };
 NW.isAdmin = u => !!(u && u.email && NW.ADMIN_EMAILS.includes(u.email));
@@ -306,9 +341,9 @@ NW.myBusiness = async function(){
   if(!NW.uid) return null;
   const {collection,query,where,getDocs}=NW.fb;
   const [byOwner, byMember] = await Promise.all([
-    getDocs(query(collection(NW.db,'bc_biz'),where('ownerId','==',NW.uid))).catch(()=>({docs:[]})),
+    getDocs(query(collection(NW.db,'biz'),where('ownerId','==',NW.uid))).catch(()=>({docs:[]})),
     NW.user?.email
-      ? getDocs(query(collection(NW.db,'bc_biz'),where('memberEmails','array-contains',NW.user.email))).catch(()=>({docs:[]}))
+      ? getDocs(query(collection(NW.db,'biz'),where('memberEmails','array-contains',NW.user.email))).catch(()=>({docs:[]}))
       : Promise.resolve({docs:[]})
   ]);
   const map=new Map();

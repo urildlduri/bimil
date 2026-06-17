@@ -11,14 +11,23 @@
 #splash{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:200;transition:opacity .5s}
 #splash .brand{font-size:60px;animation:pop .7s cubic-bezier(.2,1.2,.4,1)}
 @keyframes pop{0%{transform:scale(.6);opacity:0}100%{transform:scale(1);opacity:1}}
-.gbtn{background:#fff;color:#1f1f1f;font-weight:700;font-size:16px;padding:15px 22px;border-radius:12px;display:flex;align-items:center;justify-content:center;gap:12px;width:100%;max-width:340px;transition:.12s;border:1px solid var(--bd);box-shadow:0 2px 6px rgba(0,0,0,.04)}
-.gbtn:active{transform:scale(.97)}
-.gbtn svg{width:20px;height:20px}
-.login-wrap{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px;text-align:center}
-.me-bar{display:flex;align-items:center;gap:10px;background:var(--bg2);border:1px solid var(--bd);border-radius:30px;padding:6px 8px 6px 14px;margin-bottom:30px}
-.me-bar img{width:30px;height:30px;border-radius:50%}
-.me-bar .nm{font-size:13px;font-weight:700}
-.me-bar .lo{font-size:12px;color:var(--tx3);background:var(--bg3);padding:6px 10px;border-radius:20px;font-weight:700}
+.auth-wrap{max-width:420px;margin:0 auto;min-height:100vh;display:flex;flex-direction:column;justify-content:center;padding:40px 24px}
+.auth-tabs{display:flex;gap:0;border-bottom:1px solid var(--bd);margin-top:30px}
+.auth-tab{flex:1;background:none;padding:14px;font-size:14px;font-weight:700;color:var(--tx3);border-bottom:2px solid transparent;transition:.12s;cursor:pointer}
+.auth-tab.on{color:var(--y);border-bottom-color:var(--y)}
+.auth-inp{width:100%;background:var(--bg2);border:1.5px solid var(--bd);border-radius:12px;padding:14px 16px;font-size:15px;color:var(--tx);font-family:inherit;margin-bottom:10px;transition:.12s}
+.auth-inp:focus{outline:none;border-color:var(--y)}
+.auth-inp::placeholder{color:var(--tx3)}
+.auth-row{display:flex;gap:10px}
+.auth-row .auth-inp{margin-bottom:10px}
+.auth-help{font-size:11px;color:var(--tx3);margin-top:-6px;margin-bottom:10px;padding-left:4px}
+.auth-link{color:var(--y);font-size:13px;font-weight:700;background:none;border:none;cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+.nick-box{background:var(--bg2);border:1px solid var(--y);border-radius:12px;padding:12px 14px;display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.nick-box .em{font-size:22px}
+.nick-box .info{flex:1}
+.nick-box .info .lb{font-size:10px;color:var(--tx3);font-weight:700;letter-spacing:.3px}
+.nick-box .info .nm{font-size:15px;font-weight:800;color:var(--y);margin-top:1px}
+.nick-box .reroll{background:var(--bg3);color:var(--y);border:none;padding:7px 11px;font-size:11px;font-weight:700;border-radius:8px;cursor:pointer}
 </style>
 </head>
 <body>
@@ -26,53 +35,183 @@
 
 <div id="splash"><div class="brand">BIMIL<span class="w">CALL</span></div></div>
 
-<!-- 로그인 화면 -->
-<section id="loginScr" class="scr login-wrap">
-  <div class="brand">BIMIL<span class="w">CALL</span></div>
-  <div class="brand-sub">조용히, 빠르게, 지금 가능한 곳</div>
-  <div style="margin-top:48px;width:100%;display:flex;flex-direction:column;align-items:center">
-    <label style="display:flex;align-items:flex-start;gap:10px;max-width:340px;margin-bottom:14px;cursor:pointer">
-      <input type="checkbox" id="agree" style="width:18px;height:18px;margin-top:2px;accent-color:var(--y)">
-      <span style="font-size:13px;color:var(--tx2);line-height:1.5;text-align:left">
-        <a href="terms.html" target="_blank" style="color:var(--y);font-weight:700">이용약관</a> 및 
-        <a href="privacy.html" target="_blank" style="color:var(--y);font-weight:700">개인정보처리방침</a>에 동의합니다 (필수)</span>
-    </label>
-    <button class="gbtn" onclick="doLogin()">
-      <svg viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.9 2.4 30.3 0 24 0 14.6 0 6.4 5.4 2.6 13.2l7.9 6.2C12.3 13.7 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.5 3-2.2 5.5-4.7 7.2l7.3 5.7c4.3-4 6.8-9.9 6.8-17.4z"/><path fill="#FBBC05" d="M10.5 28.4c-.5-1.5-.8-3-.8-4.6s.3-3.1.8-4.6l-7.9-6.2C1 16.1 0 19.9 0 23.8s1 7.7 2.6 11l7.9-6.4z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.3-5.7c-2 1.4-4.7 2.3-8.6 2.3-6.3 0-11.7-4.2-13.5-9.9l-7.9 6.4C6.4 42.6 14.6 48 24 48z"/></svg>
-      Google로 계속하기
-    </button>
-    <div class="muted" style="margin-top:18px;font-size:12px;max-width:300px">로그인 시 Google 계정 정보(이름·이메일·프로필)를 수집해 회원 식별에 사용합니다.</div>
+<!-- 로그인/회원가입 통합 화면 -->
+<section id="loginScr" class="scr">
+<div class="auth-wrap">
+  <div style="text-align:center">
+    <div class="brand" style="font-size:42px">BIMIL<span class="w">CALL</span></div>
+    <div class="brand-sub" style="margin-top:8px">조용히, 빠르게, 지금 가능한 곳</div>
   </div>
-</section>
 
-<!-- 로그인 후 자동 분기 (index.html은 라우터 역할만) -->
+  <!-- 탭 -->
+  <div class="auth-tabs">
+    <button class="auth-tab on" id="tabLogin" onclick="switchTab('login')">로그인</button>
+    <button class="auth-tab" id="tabSignup" onclick="switchTab('signup')">회원가입</button>
+  </div>
+
+  <!-- 로그인 폼 -->
+  <div id="loginForm" style="margin-top:28px">
+    <input class="auth-inp" id="liEmail" type="email" placeholder="이메일" autocomplete="email">
+    <input class="auth-inp" id="liPw" type="password" placeholder="비밀번호" autocomplete="current-password">
+    <button class="cta" onclick="doEmailLogin()">로그인</button>
+    <div style="text-align:center;margin-top:18px">
+      <button class="auth-link" onclick="forgotPw()">비밀번호를 잊으셨나요?</button>
+    </div>
+  </div>
+
+  <!-- 회원가입 폼 -->
+  <div id="signupForm" class="hide" style="margin-top:28px">
+    <!-- 닉네임 (자동 생성) -->
+    <div class="nick-box">
+      <div class="em">🎭</div>
+      <div class="info">
+        <div class="lb">자동 생성 닉네임</div>
+        <div class="nm" id="suNick">--</div>
+      </div>
+      <button class="reroll" onclick="rerollSignupNick()">🎲 다시</button>
+    </div>
+    <div class="auth-help">실명 대신 이 닉네임이 사용돼요. 가입 후 MY에서 변경 가능합니다.</div>
+
+    <input class="auth-inp" id="suEmail" type="email" placeholder="이메일" autocomplete="email">
+    <div class="auth-help">비밀번호 찾기에 사용됩니다. 다른 곳에 노출되지 않습니다.</div>
+
+    <input class="auth-inp" id="suPw" type="password" placeholder="비밀번호 (8자 이상)" autocomplete="new-password">
+    <input class="auth-inp" id="suPw2" type="password" placeholder="비밀번호 확인" autocomplete="new-password">
+
+    <div class="field-lb" style="margin-top:14px">생년월일 (만 19세 이상)</div>
+    <div class="auth-row">
+      <input class="auth-inp" id="suBy" type="number" placeholder="YYYY" min="1900" max="2100" maxlength="4" style="flex:1.5">
+      <input class="auth-inp" id="suBm" type="number" placeholder="MM" min="1" max="12" maxlength="2" style="flex:1">
+      <input class="auth-inp" id="suBd" type="number" placeholder="DD" min="1" max="31" maxlength="2" style="flex:1">
+    </div>
+
+    <label style="display:flex;align-items:flex-start;gap:10px;margin-top:14px;cursor:pointer">
+      <input type="checkbox" id="suAgree1" style="width:18px;height:18px;margin-top:2px;accent-color:var(--y);flex-shrink:0">
+      <span style="font-size:12px;color:var(--tx2);line-height:1.5">
+        <a href="terms.html" target="_blank" style="color:var(--y);font-weight:700">이용약관</a> 및 
+        <a href="privacy.html" target="_blank" style="color:var(--y);font-weight:700">개인정보처리방침</a>에 동의합니다 (필수)
+      </span>
+    </label>
+    <label style="display:flex;align-items:flex-start;gap:10px;margin-top:8px;cursor:pointer">
+      <input type="checkbox" id="suAgree2" style="width:18px;height:18px;margin-top:2px;accent-color:var(--y);flex-shrink:0">
+      <span style="font-size:12px;color:var(--tx2);line-height:1.5">
+        본인이 <b style="color:var(--y)">만 19세 이상</b>이며, 본 서비스는 합법 업소 매칭만 다룬다는 사실에 동의합니다 (필수)
+      </span>
+    </label>
+
+    <button class="cta" onclick="doSignup()" style="margin-top:18px">가입하기</button>
+  </div>
+
+  <div style="margin-top:24px;padding:12px;background:var(--bg2);border:1px solid var(--bd);border-radius:10px;font-size:11px;color:var(--tx3);line-height:1.6;text-align:center">
+    🔒 완전 익명 보장 · 실명·연락처 비공개 · 합법 업소만 등록
+  </div>
+</div>
+</section>
 
 <div id="toast"></div>
 <script src="bc-core.js"></script>
 <script>
-const {$}=NW;
+const {$,toast}=NW;
 function showScr(id){document.querySelectorAll('body>.scr').forEach(s=>s.classList.remove('on'));$(id).classList.add('on');}
 
-// 스플래시 1.2초 후 페이드아웃 → 로그인 상태 확인
+// 스플래시
 setTimeout(()=>{const sp=$('splash');sp.style.opacity='0';setTimeout(()=>sp.style.display='none',500);},1200);
 
 NW.onAuth(async u=>{
   if(u){ await afterLogin(u); }
-  else { showScr('loginScr'); }
+  else {
+    showScr('loginScr');
+    // 회원가입 닉네임 초기화
+    rerollSignupNick();
+  }
 });
 
-window.doLogin=async()=>{
-  if(!$('agree').checked){ NW.toast('약관·개인정보처리방침 동의가 필요해요'); return; }
-  try{ const u=await NW.googleLogin(); await afterLogin(u); }
-  catch(e){ NW.toast('로그인 실패: '+(e.code||e.message)); }
+window.switchTab=(mode)=>{
+  const isLogin = mode==='login';
+  $('tabLogin').classList.toggle('on', isLogin);
+  $('tabSignup').classList.toggle('on', !isLogin);
+  $('loginForm').classList.toggle('hide', !isLogin);
+  $('signupForm').classList.toggle('hide', isLogin);
 };
 
+let signupNick = '';
+window.rerollSignupNick=()=>{
+  signupNick = NW.genNickname();
+  $('suNick').textContent = signupNick;
+};
+
+window.doEmailLogin=async()=>{
+  const email = $('liEmail').value.trim();
+  const pw = $('liPw').value;
+  if(!email || !pw){ toast('이메일과 비밀번호를 입력해주세요'); return; }
+  try{
+    const u = await NW.emailLogin(email, pw);
+    await afterLogin(u);
+  }catch(e){
+    const msg = errMsg(e.code) || e.message;
+    toast('로그인 실패: '+msg);
+  }
+};
+
+window.doSignup=async()=>{
+  const email = $('suEmail').value.trim();
+  const pw = $('suPw').value;
+  const pw2 = $('suPw2').value;
+  const by = parseInt($('suBy').value);
+  const bm = parseInt($('suBm').value);
+  const bd = parseInt($('suBd').value);
+
+  if(!email || !email.includes('@')){ toast('올바른 이메일을 입력해주세요'); return; }
+  if(pw.length < 8){ toast('비밀번호는 8자 이상이어야 합니다'); return; }
+  if(pw !== pw2){ toast('비밀번호가 일치하지 않습니다'); return; }
+  if(!by || by < 1920 || by > new Date().getFullYear()){ toast('출생연도를 확인해주세요'); return; }
+  if(!bm || bm < 1 || bm > 12 || !bd || bd < 1 || bd > 31){ toast('생년월일을 확인해주세요'); return; }
+  const age = new Date().getFullYear() - by;
+  if(age < 19){ toast('만 19세 이상만 가입 가능합니다'); return; }
+  if(!$('suAgree1').checked){ toast('약관 동의가 필요합니다'); return; }
+  if(!$('suAgree2').checked){ toast('19세 이상 확인 동의가 필요합니다'); return; }
+  if(!signupNick) rerollSignupNick();
+
+  try{
+    const u = await NW.emailSignup({email, password:pw, nickname:signupNick, birthYear:by});
+    toast('🎉 가입 완료! 환영합니다, '+signupNick);
+    setTimeout(()=>afterLogin(u), 600);
+  }catch(e){
+    const msg = errMsg(e.code) || e.message;
+    toast('가입 실패: '+msg);
+  }
+};
+
+window.forgotPw=async()=>{
+  const email = $('liEmail').value.trim() || prompt('비밀번호 재설정 링크를 받을 이메일을 입력하세요:');
+  if(!email) return;
+  try{
+    await NW.resetPassword(email);
+    toast('📧 재설정 링크를 이메일로 보냈어요');
+  }catch(e){
+    const msg = errMsg(e.code) || e.message;
+    toast('실패: '+msg);
+  }
+};
+
+function errMsg(code){
+  const map = {
+    'auth/email-already-in-use':'이미 가입된 이메일입니다',
+    'auth/invalid-email':'이메일 형식이 올바르지 않습니다',
+    'auth/weak-password':'비밀번호가 너무 약합니다 (8자 이상)',
+    'auth/user-not-found':'등록되지 않은 이메일입니다',
+    'auth/wrong-password':'비밀번호가 일치하지 않습니다',
+    'auth/invalid-credential':'이메일 또는 비밀번호가 올바르지 않습니다',
+    'auth/too-many-requests':'너무 많은 시도가 있었어요. 잠시 후 다시 시도해주세요',
+    'auth/network-request-failed':'네트워크 오류. 인터넷 연결을 확인해주세요'
+  };
+  return map[code];
+}
+
 async function afterLogin(u){
-  // 역할 자동 분기
   if(NW.isAdmin(u)){ location.replace('admin.html'); return; }
-  const biz=await NW.myBusiness();
+  const biz = await NW.myBusiness();
   if(biz && biz.approved){ location.replace('merchant.html'); return; }
-  // 그 외 전부 사용자 앱
   location.replace('user.html');
 }
 </script>
