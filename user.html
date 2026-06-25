@@ -215,9 +215,26 @@
 
   <!-- 글 상세 -->
   <div id="u-comm-detail" class="scr">
-    <div class="page">
+    <div class="page" style="padding-bottom:80px">
       <button class="back" onclick="closeCommDetail()" style="background:none;color:var(--tx2);font-weight:700;font-size:14px;margin-bottom:14px">← 목록</button>
       <div id="commDetailBody"></div>
+      <!-- 댓글 영역 -->
+      <div id="commComments" style="margin-top:28px">
+        <div class="h2" style="font-size:15px;margin-bottom:0">💬 댓글 <span id="commCommentCnt" style="color:var(--tx3);font-size:13px;font-weight:600"></span></div>
+        <div id="commCommentList" style="margin-top:10px"></div>
+        <!-- 댓글 작성 -->
+        <div style="margin-top:16px;background:var(--bg2);border:1px solid var(--bd);border-radius:var(--rad);padding:14px">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+            <span style="font-size:18px">🎭</span>
+            <span id="commCommentNick" style="font-size:12px;font-weight:700;color:var(--y)">--</span>
+          </div>
+          <textarea class="inp" id="commCommentTxt" rows="2" maxlength="500" placeholder="댓글을 입력하세요 (최대 500자)" style="margin-top:0;resize:none;font-size:14px"></textarea>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px">
+            <span style="font-size:11px;color:var(--tx3)" id="commCommentCharCnt">0 / 500</span>
+            <button onclick="submitComment()" style="background:var(--y);color:#000;border:none;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:800">등록</button>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -804,15 +821,17 @@ window.submitComm=async()=>{
   }
 };
 
-// 글자수 카운터
-document.addEventListener('input', e=>{
-  if(e.target.id==='commContent'){
-    $('commCharCnt').textContent = `${e.target.value.length} / 1500`;
-  }
-});
-
 /* ── 글 상세 ── */
+
+window.closeCommDetail=()=>{
+  if(commCommentUnsub){commCommentUnsub();commCommentUnsub=null;}
+  curCommPostId=null;
+  subShow('u-comm');
+};
+
 window.openCommDetail=async(postId)=>{
+  curCommPostId = postId;
+  commCommentNick = null; // 댓글마다 새 닉네임
   try{
     const {doc,getDoc} = NW.fb;
     const s = await getDoc(doc(NW.db,'community',postId));
@@ -838,16 +857,111 @@ window.openCommDetail=async(postId)=>{
       <div style="font-size:15px;line-height:1.8;margin-top:20px;white-space:pre-wrap;color:var(--tx)">${escapeHtml(p.content)}</div>
       <div style="margin-top:30px;display:flex;align-items:center;gap:14px">
         <button onclick="likeCommPost('${postId}')" style="background:var(--bg2);border:1px solid var(--bd);padding:10px 16px;border-radius:10px;font-size:13px;font-weight:700;color:var(--tx);cursor:pointer">❤️ ${p.likes||0}</button>
-        <span style="color:var(--tx3);font-size:13px">💬 댓글 ${p.commentCount||0}</span>
       </div>
       <div class="muted" style="font-size:11px;margin-top:24px;text-align:center;padding:14px;background:var(--bg2);border-radius:var(--rad);border:1px solid var(--bd)">
         ※ 비방·욕설·허위정보·불법 행위 유도 게시물은 사전 통보 없이 삭제됩니다.<br>※ 익명이지만 작성자 식별이 가능하며 법적 책임은 작성자에게 있습니다.
       </div>
     `;
+    // 댓글 닉네임 설정
+    if(!commCommentNick) commCommentNick = NW.genNickname();
+    const nickEl = $('commCommentNick');
+    if(nickEl) nickEl.textContent = commCommentNick;
+    // 댓글 실시간 로드
+    loadComments(postId);
     subShow('u-comm-detail');
   }catch(e){toast('실패: '+e.message);}
 };
-window.closeCommDetail=()=>{ subShow('u-comm'); };
+
+function loadComments(postId){
+  if(commCommentUnsub){commCommentUnsub();commCommentUnsub=null;}
+  if(!NW.fbLoaded || !NW.db) return;
+  const {collection,query,orderBy,onSnapshot} = NW.fb;
+  try{
+    const q = query(collection(NW.db,'community',postId,'comments'), orderBy('at','asc'));
+    commCommentUnsub = onSnapshot(q, snap=>{
+      const comments = snap.docs.map(d=>({id:d.id,...d.data()}));
+      renderComments(postId, comments);
+    }, err=>{ console.warn('[comments]',err); });
+  }catch(e){ console.warn('[loadComments]',e); }
+}
+
+function renderComments(postId, comments){
+  const cntEl = $('commCommentCnt');
+  if(cntEl) cntEl.textContent = comments.length ? `(${comments.length})` : '';
+  const listEl = $('commCommentList');
+  if(!listEl) return;
+  if(!comments.length){
+    listEl.innerHTML = `<div class="muted" style="font-size:13px;padding:12px 0">아직 댓글이 없어요. 첫 댓글을 달아보세요!</div>`;
+    return;
+  }
+  listEl.innerHTML = comments.map(c=>{
+    const t = c.at?.toDate ? c.at.toDate() : new Date();
+    const ts = formatPostTime(t);
+    const isMine = c.uid === NW.uid;
+    return `<div style="padding:12px 0;border-bottom:1px solid var(--bd);display:flex;gap:10px;align-items:flex-start">
+      <span style="font-size:18px;flex-shrink:0">🎭</span>
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+          <span style="font-size:12px;font-weight:700;color:var(--y)">${escapeHtml(c.nickname||'익명')}</span>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:11px;color:var(--tx3)">${ts}</span>
+            ${isMine?`<button onclick="deleteComment('${postId}','${c.id}')" style="background:none;color:var(--no);border:none;font-size:11px;font-weight:700;cursor:pointer">삭제</button>`:''}
+          </div>
+        </div>
+        <div style="font-size:14px;line-height:1.6;color:var(--tx2);white-space:pre-wrap">${escapeHtml(c.content||'')}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// 댓글 글자수 카운터
+document.addEventListener('input', e=>{
+  if(e.target.id==='commCommentTxt'){
+    const el = $('commCommentCharCnt');
+    if(el) el.textContent = `${e.target.value.length} / 500`;
+  }
+  if(e.target.id==='commContent'){
+    $('commCharCnt').textContent = `${e.target.value.length} / 1500`;
+  }
+});
+
+window.submitComment=async()=>{
+  const txt = $('commCommentTxt')?.value.trim();
+  if(!txt || txt.length < 1){toast('댓글 내용을 입력해주세요');return;}
+  if(!NW.uid){toast('로그인이 필요합니다');return;}
+  if(!curCommPostId){toast('게시글 정보가 없어요');return;}
+  if(!commCommentNick) commCommentNick = NW.genNickname();
+  try{
+    const {collection,addDoc,serverTimestamp,doc,updateDoc,increment} = NW.fb;
+    await addDoc(collection(NW.db,'community',curCommPostId,'comments'),{
+      content: txt,
+      nickname: commCommentNick,
+      uid: NW.uid,
+      at: serverTimestamp()
+    });
+    // commentCount 증가
+    await updateDoc(doc(NW.db,'community',curCommPostId),{commentCount: increment(1)}).catch(()=>{});
+    $('commCommentTxt').value = '';
+    const el = $('commCommentCharCnt');
+    if(el) el.textContent = '0 / 500';
+    // 다음 댓글은 새 닉네임
+    commCommentNick = NW.genNickname();
+    const nickEl = $('commCommentNick');
+    if(nickEl) nickEl.textContent = commCommentNick;
+    toast('댓글이 등록됐어요!');
+  }catch(e){toast('실패: '+(e.code||e.message));}
+};
+
+window.deleteComment=async(postId,commentId)=>{
+  if(!confirm('댓글을 삭제할까요?'))return;
+  try{
+    const {doc,deleteDoc,updateDoc,increment} = NW.fb;
+    await deleteDoc(doc(NW.db,'community',postId,'comments',commentId));
+    await updateDoc(doc(NW.db,'community',postId),{commentCount: increment(-1)}).catch(()=>{});
+    toast('삭제 완료');
+  }catch(e){toast('실패: '+(e.code||e.message));}
+};
+
 window.likeCommPost=async(postId)=>{
   if(!NW.uid){toast('로그인이 필요합니다');return;}
   try{
