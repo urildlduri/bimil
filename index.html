@@ -152,7 +152,17 @@ window.doUserIdLogin=async()=>{
     if(id.includes('@')){
       u = await NW.emailLogin(id, pw);
     }else{
-      u = await NW.userIdLogin(id, pw);
+      // 사용자 아이디 로그인 시도 → 실패하면 매장 아이디로 재시도
+      try{
+        u = await NW.userIdLogin(id, pw);
+      }catch(e1){
+        // 사용자 계정 없음 → 매장 계정으로 재시도
+        if(e1.code==='auth/invalid-credential'||e1.code==='auth/user-not-found'||e1.code==='auth/wrong-password'){
+          u = await NW.merchantLogin(id, pw);
+        }else{
+          throw e1;
+        }
+      }
     }
     await afterLogin(u);
   }catch(e){

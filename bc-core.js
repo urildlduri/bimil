@@ -149,6 +149,7 @@ NW.fbReady = (async()=>{
     const A  = await import(FB_BASE+"firebase-app.js");
     const Au = await import(FB_BASE+"firebase-auth.js");
     const F  = await import(FB_BASE+"firebase-firestore.js");
+    const S  = await import(FB_BASE+"firebase-storage.js");
     Object.assign(NW.fb, {
       getAuth:Au.getAuth, onAuthStateChanged:Au.onAuthStateChanged, signOut:Au.signOut,
       createUserWithEmailAndPassword:Au.createUserWithEmailAndPassword,
@@ -157,16 +158,18 @@ NW.fbReady = (async()=>{
       updateProfile:Au.updateProfile,
       collection:F.collection, collectionGroup:F.collectionGroup, doc:F.doc, addDoc:F.addDoc, setDoc:F.setDoc, updateDoc:F.updateDoc,
       getDoc:F.getDoc, getDocs:F.getDocs, query:F.query, where:F.where, onSnapshot:F.onSnapshot,
-      serverTimestamp:F.serverTimestamp, deleteDoc:F.deleteDoc, orderBy:F.orderBy, limit:F.limit, Timestamp:F.Timestamp, increment:F.increment
+      serverTimestamp:F.serverTimestamp, deleteDoc:F.deleteDoc, orderBy:F.orderBy, limit:F.limit, Timestamp:F.Timestamp, increment:F.increment,
+      getStorage:S.getStorage, storageRef:S.ref, uploadBytes:S.uploadBytes, getDownloadURL:S.getDownloadURL, deleteObject:S.deleteObject
     });
     if(NW.cfgOk){
       NW.app  = A.initializeApp(FIREBASE_CONFIG);
       NW.auth = Au.getAuth(NW.app);
       NW.db   = F.getFirestore(NW.app);
+      NW.storage = S.getStorage(NW.app);
     }
     NW.fbLoaded = true;
   }catch(e){
-    console.error('[NOWAIT] Firebase 로드 실패:',e);
+    console.error('[BIMILCALL] Firebase 로드 실패:',e);
     const w=NW.$('cfgWarn');
     if(w){w.classList.remove('hide');
       w.textContent='⚠️ Firebase 로드 실패 — file://이 아닌 http(s)로 열어야 합니다. 콘솔(F12) 로그 참고.';}
@@ -325,6 +328,93 @@ NW.ensureProfile = async function(u, extra){
   }
   return NW.profile;
 };
+/* ── 매장 전용 아이디 로그인 (관리자가 사전 발급한 계정) ──
+   내부적으로 {매장아이디}@bimilcall-biz.local 가짜 이메일 사용 (사용자 .local과 분리) ── */
+NW.merchantIdToFakeEmail = function(merchantId){
+  return merchantId.toLowerCase().trim() + '@bimilcall-biz.local';
+};
+
+NW.merchantLogin = async function(merchantId, password){
+  await NW.fbReady;
+  if(!NW.fbLoaded) throw new Error('firebase not loaded');
+  const {signInWithEmailAndPassword} = NW.fb;
+  const fakeEmail = NW.merchantIdToFakeEmail(merchantId);
+  const res = await signInWithEmailAndPassword(NW.auth, fakeEmail, password);
+  NW.uid = res.user.uid; NW.user = res.user;
+  await NW.ensureProfile(res.user);
+  return res.user;
+};
+
+/* ── 관리자용: 매장 계정 사전 생성 (보조 앱 인스턴스 사용) ──
+   매장명/카테고리/주소/좌표를 입력하면:
+   1) 랜덤 아이디 + 비번 생성
+   2) 별도의 보조 Firebase App에서 계정 생성 (관리자 세션 보호)
+   3) biz 문서를 approved:true 상태로 즉시 생성
+   반환값: {merchantId, password, bizId} ── */
+NW.adminCreateMerchant = async function({name, cat, addr, lat, lng}){
+  await NW.fbReady;
+  if(!NW.fbLoaded) throw new Error('firebase not loaded');
+  const A  = await import(FB_BASE+"firebase-app.js");
+  const Au = await import(FB_BASE+"firebase-auth.js");
+  const {doc, setDoc, serverTimestamp} = NW.fb;
+
+  // 1) 아이디/비번 생성
+  const rand = Math.floor(1000+Math.random()*9000);
+  const merchantId = `${cat||'biz'}-${rand}`;
+  const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+  let password = '';
+  for(let i=0;i<8;i++) password += chars[Math.floor(Math.random()*chars.length)];
+  const fakeEmail = NW.merchantIdToFakeEmail(merchantId);
+
+  // 2) 보조 앱 인스턴스에서 계정 생성 (관리자 세션 영향 없음)
+  const tempAppName = 'biz-creator-'+Date.now();
+  const tempApp = A.initializeApp(FIREBASE_CONFIG, tempAppName);
+  const tempAuth = Au.getAuth(tempApp);
+  let newUid;
+  try{
+    const res = await Au.createUserWithEmailAndPassword(tempAuth, fakeEmail, password);
+    newUid = res.user.uid;
+    if(Au.updateProfile) await Au.updateProfile(res.user, {displayName: name});
+    await Au.signOut(tempAuth);
+  }finally{
+    if(A.deleteApp) await A.deleteApp(tempApp).catch(()=>{});
+  }
+
+  // 3) biz 문서 생성 (관리자 권한으로)
+  await setDoc(doc(NW.db,'biz',newUid), {
+    ownerId: newUid,
+    name: name||'매장',
+    cat: cat||'',
+    addr: addr||'',
+    lat: lat||null,
+    lng: lng||null,
+    approved: true,
+    status: 'open',
+    isHot: false,
+    merchantId,
+    createdAt: serverTimestamp(),
+  });
+
+  return { merchantId, password, bizId: newUid };
+};
+
+/* ── 매장 사진 업로드 (Firebase Storage) ──
+   경로: biz_photos/{bizId}/{timestamp}_{filename}
+   반환: 다운로드 URL ── */
+NW.uploadBizPhoto = async function(file, bizId){
+  await NW.fbReady;
+  if(!NW.fbLoaded || !NW.storage) throw new Error('storage not loaded');
+  if(!file) throw new Error('파일이 없습니다');
+  if(!file.type.startsWith('image/')) throw new Error('이미지 파일만 업로드 가능합니다');
+  if(file.size > 5*1024*1024) throw new Error('파일 크기는 5MB 이하여야 합니다');
+  const {storageRef, uploadBytes, getDownloadURL} = NW.fb;
+  const safeName = file.name.replace(/[^a-zA-Z0-9.]/g,'_');
+  const path = `biz_photos/${bizId}/${Date.now()}_${safeName}`;
+  const ref = storageRef(NW.storage, path);
+  await uploadBytes(ref, file);
+  return await getDownloadURL(ref);
+};
+
 NW.isAdmin = u => !!(u && u.email && NW.ADMIN_EMAILS.includes(u.email));
 
 /* 계정의 단일 역할 판별: 'admin' | 'merchant' | 'user'

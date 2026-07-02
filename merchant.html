@@ -86,7 +86,12 @@
       <button class="cta ghost" style="margin-top:8px" onclick="eUseGps()">📍 현재 위치(GPS)로 설정</button>
       <div id="eMap" style="width:100%;height:200px;border-radius:var(--rad);margin-top:10px;background:var(--bg2);border:1px solid var(--bd);overflow:hidden"></div>
       <div class="muted" style="font-size:12px;margin-top:6px">지도를 탭하면 그 위치로 매장이 이동해요.</div></div>
-    <div class="field"><div class="field-lb">사진 URL</div><input class="inp" id="ePhoto" placeholder="https://...jpg"></div>
+    <div class="field"><div class="field-lb">대표 사진</div>
+      <div id="ePhotoPreview" style="width:100%;height:160px;border-radius:var(--rad);background:var(--bg2);border:1px dashed var(--bd);display:flex;align-items:center;justify-content:center;overflow:hidden;margin-bottom:10px;color:var(--tx3);font-size:13px">사진 없음</div>
+      <input type="file" id="ePhotoFile" accept="image/*" class="hide" onchange="handlePhotoSelect(event)">
+      <button class="cta ghost" style="margin-top:0" onclick="$('ePhotoFile').click()">📷 사진 선택 (최대 5MB)</button>
+      <div id="ePhotoStatus" class="muted" style="font-size:12px;margin-top:6px"></div>
+      <input type="hidden" id="ePhoto"></div>
     <div class="field"><div class="field-lb">홈페이지 URL <span style="color:var(--tx3);font-weight:500">(선택)</span></div>
       <input class="inp" id="eWebsite" placeholder="https://..."></div>
     <div class="field"><div class="field-lb">메뉴·가격 <span style="color:var(--tx3);font-weight:500">(한 줄에 하나: 이름,가격)</span></div>
@@ -250,6 +255,7 @@ window.openEdit=()=>{
   $('eLat').value=(+myBiz.lat).toFixed(6);
   $('eLng').value=(+myBiz.lng).toFixed(6);
   $('ePhoto').value=myBiz.photo||'';
+  renderPhotoPreview(myBiz.photo||'');
   $('eWebsite').value=myBiz.website||'';
   $('eMenu').value=(myBiz.menu||[]).map(m=>`${m.name},${m.price||0}`).join('\n');
   $('eHours').value=myBiz.hours||'';
@@ -260,6 +266,30 @@ window.openEdit=()=>{
   $('eRad').innerHTML=RADII.map(r=>`<button class="chip ${r===eSel.rad?'on':''}" data-r="${r}" onclick="ePickRad(${r})">${distLabel(r)}</button>`).join('');
   $('eMinParty').innerHTML=[1,2,3,4].map(n=>`<button class="chip ${n===eSel.minParty?'on':''}" data-m="${n}" onclick="ePickMin(${n})">${n}명 가능${n===4?'+':''}</button>`).join('');
   drawEditMap();
+};
+function renderPhotoPreview(url){
+  const el=$('ePhotoPreview');
+  if(!el) return;
+  if(url){ el.innerHTML=`<img src="${url}" style="width:100%;height:100%;object-fit:cover">`; }
+  else{ el.innerHTML='사진 없음'; el.style.color='var(--tx3)'; }
+}
+window.handlePhotoSelect=async(event)=>{
+  const file = event.target.files[0];
+  if(!file) return;
+  const statusEl = $('ePhotoStatus');
+  statusEl.textContent = '⏳ 업로드 중…';
+  statusEl.style.color = 'var(--tx3)';
+  try{
+    const url = await NW.uploadBizPhoto(file, myBizId);
+    $('ePhoto').value = url;
+    renderPhotoPreview(url);
+    statusEl.textContent = '✅ 업로드 완료 — 저장하기를 눌러 반영하세요';
+    statusEl.style.color = 'var(--ok)';
+  }catch(e){
+    statusEl.textContent = '❌ 실패: '+e.message;
+    statusEl.style.color = 'var(--no)';
+  }
+  event.target.value='';
 };
 window.ePickCat=k=>{eSel.cat=k;document.querySelectorAll('#eCat .chip').forEach(b=>b.classList.toggle('on',b.dataset.c===k));};
 window.ePickRad=r=>{eSel.rad=r;document.querySelectorAll('#eRad .chip').forEach(b=>b.classList.toggle('on',+b.dataset.r===r));};

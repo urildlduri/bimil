@@ -32,11 +32,36 @@
 
   <div class="adm-tools">
     <button class="adm-btn" style="color:var(--y);border-color:var(--y)" onclick="toggleDashboard()" id="dashBtn">📊 전체 통계</button>
+    <button class="adm-btn" style="color:var(--y);border-color:var(--y)" onclick="openMerchantCreator()">➕ 매장 사전 생성</button>
     <button class="adm-btn" onclick="cleanFinished()">🧹 종료된 호출 정리</button>
     <button class="adm-btn" onclick="spawnDemo()">🧪 데모 매장 3개 생성(승인됨)</button>
     <button class="adm-btn danger" onclick="cleanDemo()">🗑 데모 매장 삭제</button>
     <button class="adm-btn danger" onclick="cleanAll()">⚠ 전체 호출 초기화</button>
     <a class="adm-btn" href="user.html" style="text-decoration:none">👁 사용자 앱 미리보기</a>
+  </div>
+
+  <!-- 매장 사전 생성 패널 -->
+  <div id="merchantCreator" class="hide adm-panel" style="margin-bottom:24px;border-color:var(--y)">
+    <h3>➕ 매장 사전 생성 <span class="muted" style="font-size:11px;font-weight:600">현장 영업용 — 아이디/비번 만들어서 사장님께 전달</span></h3>
+    <div style="padding:16px;display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <input class="inp" id="mcName" placeholder="매장명 (예: 강남 노래주점)" style="margin-top:0">
+      <select class="inp" id="mcCat" style="margin-top:0"></select>
+      <div style="grid-column:1/-1;display:flex;gap:8px">
+        <input class="inp" id="mcAddr" placeholder="주소 (예: 서울 강남구 역삼동 123-4)" style="margin-top:0;flex:1;margin-bottom:0">
+        <button onclick="geocodeAddr()" style="background:var(--y);color:#000;padding:0 16px;border-radius:10px;font-size:12px;font-weight:700;white-space:nowrap;flex-shrink:0">📍 좌표 찾기</button>
+      </div>
+      <div id="mcGeoResult" style="grid-column:1/-1;font-size:12px;color:var(--tx3);display:none;padding:8px 12px;background:var(--bg3);border-radius:8px;margin-top:-4px"></div>
+      <input type="hidden" id="mcLat">
+      <input type="hidden" id="mcLng">
+    </div>
+    <div style="padding:0 16px 16px">
+      <button class="adm-btn" style="background:var(--y);color:#000;width:100%;justify-content:center" onclick="createMerchantNow()">계정 생성하기</button>
+    </div>
+    <div id="mcResult" class="hide" style="padding:0 16px 16px"></div>
+    <div style="padding:0 16px 16px">
+      <div class="muted" style="font-size:11px;margin-bottom:8px;font-weight:700">📋 생성 내역 (이번 세션)</div>
+      <div id="mcHistory"></div>
+    </div>
   </div>
 
   <!-- 전체 통계 대시보드 -->
@@ -331,6 +356,113 @@ window.cleanAll=async()=>{
   const n=await delDocs(calls,'calls');toast(`전체 ${n}건 초기화`);
 };
 window.addEventListener('beforeunload',()=>{if(callsUnsub)callsUnsub();if(bizUnsub)bizUnsub();});
+
+/* ════════════════════════════════════════════════════════════════
+   ➕ 매장 사전 생성 (현장 영업용)
+   ════════════════════════════════════════════════════════════════ */
+let mcHistoryList = [];
+
+window.openMerchantCreator=()=>{
+  const panel = $('merchantCreator');
+  panel.classList.toggle('hide');
+  if(!panel.classList.contains('hide')){
+    $('mcCat').innerHTML = NW.CATS.map(c=>`<option value="${c.k}">${c.e} ${c.n}</option>`).join('');
+    renderMcHistory();
+  }
+};
+
+window.geocodeAddr=async()=>{
+  const addr = $('mcAddr').value.trim();
+  if(!addr){ toast('주소를 먼저 입력해주세요'); return; }
+  const resultEl = $('mcGeoResult');
+  resultEl.style.display='block';
+  resultEl.textContent='📍 좌표 변환 중…';
+  try{
+    const kakao = await NW.loadKakao();
+    const geocoder = new kakao.maps.services.Geocoder();
+    geocoder.addressSearch(addr, (result, status)=>{
+      if(status === kakao.maps.services.Status.OK && result[0]){
+        const lat = parseFloat(result[0].y);
+        const lng = parseFloat(result[0].x);
+        $('mcLat').value = lat;
+        $('mcLng').value = lng;
+        resultEl.style.color = 'var(--ok)';
+        resultEl.textContent = `✅ 좌표: ${lat.toFixed(4)}, ${lng.toFixed(4)} — ${result[0].address_name}`;
+      }else{
+        resultEl.style.color = 'var(--no)';
+        resultEl.textContent = '❌ 주소를 찾지 못했어요. 더 자세히 입력해주세요.';
+        $('mcLat').value = ''; $('mcLng').value = '';
+      }
+    });
+  }catch(e){
+    resultEl.style.color = 'var(--no)';
+    resultEl.textContent = '❌ 카카오맵 오류: '+e.message;
+  }
+};
+
+window.createMerchantNow=async()=>{
+  const name = $('mcName').value.trim();
+  const cat = $('mcCat').value;
+  const addr = $('mcAddr').value.trim();
+  const lat = parseFloat($('mcLat').value);
+  const lng = parseFloat($('mcLng').value);
+
+  if(!name){ toast('매장명을 입력해주세요'); return; }
+  if(!addr){ toast('주소를 입력해주세요'); return; }
+  if(isNaN(lat)||isNaN(lng)){ toast('📍 좌표 찾기 버튼을 먼저 눌러주세요'); return; }
+
+  const btn = event.target;
+  btn.disabled = true; btn.textContent = '생성 중…';
+  try{
+    const result = await NW.adminCreateMerchant({name, cat, addr, lat, lng});
+    mcHistoryList.unshift({...result, name, addr});
+    renderMcResult(result, name);
+    renderMcHistory();
+    $('mcName').value=''; $('mcAddr').value=''; $('mcLat').value=''; $('mcLng').value='';
+    $('mcGeoResult').style.display='none'; $('mcGeoResult').textContent='';
+    toast('✅ 매장 계정 생성 완료');
+  }catch(e){
+    console.error('[createMerchantNow]',e);
+    toast('실패: '+(e.code||e.message));
+  }finally{
+    btn.disabled = false; btn.textContent = '계정 생성하기';
+  }
+};
+
+function renderMcResult(result, name){
+  const el = $('mcResult');
+  el.classList.remove('hide');
+  el.innerHTML = `
+    <div style="background:var(--okbg);border:1.5px solid var(--ok);border-radius:10px;padding:14px">
+      <div style="font-size:13px;font-weight:700;color:var(--ok);margin-bottom:10px">✅ "${name}" 계정 생성 완료 — 사장님께 전달하세요</div>
+      <div style="background:var(--bg2);border-radius:8px;padding:12px;font-family:var(--mono)">
+        <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+          <span style="color:var(--tx3);font-size:12px">아이디</span>
+          <b style="font-size:14px">${result.merchantId}</b>
+        </div>
+        <div style="display:flex;justify-content:space-between">
+          <span style="color:var(--tx3);font-size:12px">비밀번호</span>
+          <b style="font-size:14px">${result.password}</b>
+        </div>
+      </div>
+      <button onclick="copyMcCreds('${result.merchantId}','${result.password}')" style="width:100%;margin-top:10px;background:var(--ok);color:#fff;padding:9px;border-radius:8px;font-size:12px;font-weight:700">📋 복사하기</button>
+    </div>`;
+}
+
+window.copyMcCreds=(id,pw)=>{
+  const text = `[BIMILCALL 매장 로그인]\n아이디: ${id}\n비밀번호: ${pw}\nohdiga.com 에서 로그인하세요.`;
+  navigator.clipboard.writeText(text).then(()=>toast('📋 복사됨')).catch(()=>toast('복사 실패 — 직접 선택해주세요'));
+};
+
+function renderMcHistory(){
+  const el = $('mcHistory'); if(!el) return;
+  if(!mcHistoryList.length){ el.innerHTML='<div class="muted" style="font-size:12px">아직 생성한 계정이 없어요.</div>'; return; }
+  el.innerHTML = mcHistoryList.map(m=>`
+    <div style="background:var(--bg2);border:1px solid var(--bd);border-radius:8px;padding:10px 12px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;font-size:12px">
+      <div><b>${m.name}</b><div style="color:var(--tx3);font-family:var(--mono);margin-top:2px">${m.merchantId} / ${m.password}</div></div>
+      <button onclick="copyMcCreds('${m.merchantId}','${m.password}')" style="background:var(--bg3);color:var(--y);padding:6px 10px;border-radius:6px;font-size:11px;font-weight:700">복사</button>
+    </div>`).join('');
+}
 
 /* ════════════════════════════════════════════════════════════════
    📊 전체 통계 대시보드
