@@ -14,6 +14,21 @@ const FIREBASE_CONFIG = {
 
 const NW = {};
 window.NW = NW;
+// 배포 주소는 이 한 곳에서 관리. 커스텀 도메인 확정 전에는 현재 배포 URL 사용.
+NW.SITE_URL = new URL('./', window.location.href).href;
+NW.FUNCTIONS_REGION = 'asia-northeast3';
+NW.html = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+// onclick의 작은따옴표 문자열 안에 삽입할 값. HTML/JS 양쪽 탈출 차단.
+NW.inline = value => String(value ?? '').split('').map(c=>'\\u'+c.charCodeAt(0).toString(16).padStart(4,'0')).join('');
+NW.safeURL = value => { try { const u=new URL(value); return ['https:','http:'].includes(u.protocol)?u.href:''; } catch { return ''; } };
+NW.callServer = async function(name, data={}) {
+  await NW.fbReady;
+  const F = await import(FB_BASE+'firebase-functions.js');
+  return (await F.httpsCallable(F.getFunctions(NW.app,NW.FUNCTIONS_REGION),name)(data)).data;
+};
+NW.createCall = data => NW.callServer('createCall',data);
+NW.expireCall = callId => NW.callServer('expireCall',{callId});
+NW.adminResetMerchantPassword = bizId => NW.callServer('adminResetMerchantPassword',{bizId});
 
 /* ── 카카오맵 (JavaScript 키 · 무료) ── */
 NW.KAKAO_KEY = "56d96a0427d001e4d5fd597bd5e458e0";
@@ -202,12 +217,13 @@ NW.userIdSignup = async function({userId, password, nickname, birthYear}){
   // 아이디 검증
   if(!/^[a-zA-Z0-9_]{4,16}$/.test(userId)) throw new Error('아이디는 영문/숫자/_ 4~16자여야 합니다');
   // 만 19세 검증
-  const age = new Date().getFullYear() - parseInt(birthYear);
-  if(age < 19) throw new Error('만 19세 이상만 가입 가능합니다');
-  // 아이디 중복 체크 (users 컬렉션의 userId 필드)
-  const {collection, query, where, getDocs, createUserWithEmailAndPassword, updateProfile} = NW.fb;
-  const dupSnap = await getDocs(query(collection(NW.db,'users'), where('userId','==',userId.toLowerCase().trim())));
-  if(!dupSnap.empty) throw new Error('이미 사용 중인 아이디입니다');
+  const year = Number(birthYear);
+  const age = new Date().getFullYear() - year;
+  if(!Number.isInteger(year) || year < 1920 || age < 19) throw new Error('만 19세 이상만 가입 가능합니다');
+  // Firebase Auth가 아이디(가상 이메일) 중복을 원자적으로 검사한다.
+  // 비로그인 users 쿼리는 금지된 상태를 유지한다.
+  const {createUserWithEmailAndPassword, updateProfile} = NW.fb;
+  if(typeof password!=='string' || password.length<8) throw new Error('비밀번호는 8자 이상이어야 합니다');
 
   const fakeEmail = NW.userIdToFakeEmail(userId);
   const res = await createUserWithEmailAndPassword(NW.auth, fakeEmail, password);
@@ -268,16 +284,16 @@ NW.mountAccount = function(containerId){
   const u=NW.user;
   const nick = (NW.profile?.nickname) || u.displayName || '익명';
   const initial = nick.trim().charAt(0).toUpperCase();
-  const avatar = `<div style="width:30px;height:30px;border-radius:50%;background:var(--y);color:#000;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px">${initial}</div>`;
+  const avatar = `<div style="width:30px;height:30px;border-radius:50%;background:var(--y);color:#000;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px">${NW.html(initial)}</div>`;
   el.style.position='relative';
   el.innerHTML=`
     <button id="nwAcctBtn" style="background:var(--bg2);border:1px solid var(--bd);border-radius:30px;padding:4px 10px 4px 4px;display:flex;align-items:center;gap:8px">
-      ${avatar}<span style="font-size:13px;font-weight:700;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--y)">${nick}</span>
+      ${avatar}<span style="font-size:13px;font-weight:700;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--y)">${NW.html(nick)}</span>
       <span style="color:var(--tx3);font-size:10px">▼</span>
     </button>
     <div id="nwAcctMenu" class="hide" style="position:absolute;right:0;top:46px;background:var(--bg2);border:1px solid var(--bd);border-radius:12px;padding:8px;min-width:200px;z-index:120;box-shadow:0 8px 24px rgba(0,0,0,.4)">
       <div style="padding:10px 12px;border-bottom:1px solid var(--bd);margin-bottom:6px">
-        <div style="font-size:13px;font-weight:800;color:var(--y)">🎭 ${nick}</div>
+        <div style="font-size:13px;font-weight:800;color:var(--y)">🎭 ${NW.html(nick)}</div>
         <div style="font-size:11px;color:var(--tx3);margin-top:2px">완전 익명</div>
       </div>
       <button onclick="NW.logout()" style="width:100%;text-align:left;background:none;padding:10px 12px;border-radius:8px;font-size:14px;font-weight:600;color:var(--no)">로그아웃</button>
@@ -294,14 +310,22 @@ NW.onAuth = function(cb){
     // 리다이렉트 로그인에서 돌아온 경우 결과 수거
     try{ if(NW.fb.getRedirectResult) await NW.fb.getRedirectResult(NW.auth); }catch(e){ console.warn('redirect result',e); }
     NW.fb.onAuthStateChanged(NW.auth, async u=>{
-      if(u){NW.uid=u.uid;NW.user=u;await NW.ensureProfile(u);}
+      if(u){
+        NW.uid=u.uid;NW.user=u;
+        try { await NW.ensureProfile(u); } catch(e) { console.error('profile',e); NW.toast('프로필을 읽지 못했습니다. 새로고침해주세요'); return; }
+      }else{ NW.uid=null;NW.user=null;NW.profile=null; }
       cb(u);
     });
   });
 };
 
 /* 프로필 문서 생성/조회 (users/{uid}) */
-NW.ensureProfile = async function(u, extra){
+NW._profileQueue = Promise.resolve();
+NW.ensureProfile = function(u, extra){
+  const task=NW._profileQueue.catch(()=>{}).then(()=>NW._ensureProfile(u,extra));
+  NW._profileQueue=task; return task;
+};
+NW._ensureProfile = async function(u, extra){
   const {doc,getDoc,setDoc,serverTimestamp}=NW.fb;
   const ref=doc(NW.db,'users',u.uid);
   const s=await getDoc(ref);
@@ -320,6 +344,10 @@ NW.ensureProfile = async function(u, extra){
     NW.profile = profile;
   }else{
     NW.profile = s.data();
+    if(extra && NW.profile.birthYear==null){
+      await setDoc(ref,{userId:extra.userId,nickname:extra.nickname,birthYear:extra.birthYear},{merge:true});
+      Object.assign(NW.profile,extra);
+    }
     if(!NW.profile.nickname){
       const nick = NW.genNickname();
       await setDoc(ref, {nickname:nick}, {merge:true});
@@ -415,7 +443,7 @@ NW.uploadBizPhoto = async function(file, bizId){
   return await getDownloadURL(ref);
 };
 
-NW.isAdmin = u => !!(u && u.email && NW.ADMIN_EMAILS.includes(u.email));
+NW.isAdmin = u => !!(u && u.email && u.emailVerified && NW.ADMIN_EMAILS.includes(u.email.toLowerCase()));
 
 /* 계정의 단일 역할 판별: 'admin' | 'merchant' | 'user'
    - 관리자 이메일 → admin
@@ -454,17 +482,11 @@ NW.guardPage = function(want, onOk){
 NW.myBusiness = async function(){
   if(!NW.uid) return null;
   const {collection,query,where,getDocs}=NW.fb;
-  const [byOwner, byMember] = await Promise.all([
-    getDocs(query(collection(NW.db,'biz'),where('ownerId','==',NW.uid))).catch(()=>({docs:[]})),
-    NW.user?.email
-      ? getDocs(query(collection(NW.db,'biz'),where('memberEmails','array-contains',NW.user.email))).catch(()=>({docs:[]}))
-      : Promise.resolve({docs:[]})
-  ]);
+  const byOwner=await getDocs(query(collection(NW.db,'biz'),where('ownerId','==',NW.uid)));
   const map=new Map();
   byOwner.docs.forEach(d=>map.set(d.id,{id:d.id,...d.data(),_role:'owner'}));
-  byMember.docs.forEach(d=>{ if(!map.has(d.id)) map.set(d.id,{id:d.id,...d.data(),_role:'member'}); });
   const list=[...map.values()];
   if(!list.length) return null;
-  return list.find(b=>b.approved)||list[0];
+  return list.find(b=>b.approved && b.id===NW.uid)||list.find(b=>b.approved)||list[0];
 };
 

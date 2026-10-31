@@ -1,0 +1,24 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // 관리자 이메일을 직접 가입해 사칭하는 것을 방지한다.
+    function admin() {
+      return request.auth != null && request.auth.token.get('email_verified',false) == true &&
+        request.auth.token.get('email','') in ['urildlduri@gmail.com','liferefix@naver.com'];
+    }
+    function owner(bizId) {
+      return request.auth != null && request.auth.uid == bizId &&
+        firestore.get(/databases/(default)/documents/biz/$(bizId)).data.ownerId == request.auth.uid &&
+        firestore.get(/databases/(default)/documents/biz/$(bizId)).data.approved == true;
+    }
+    match /biz_photos/{bizId}/{filename} {
+      allow read: if true;
+      // 승인된 본인 매장만 업로드하며, 실행 가능한 SVG는 제외한다.
+      allow create, update: if (admin() || owner(bizId)) &&
+        request.resource.contentType.matches('image/(jpeg|png|gif|webp|avif|heic|heif)') &&
+        request.resource.size > 0 && request.resource.size <= 5 * 1024 * 1024;
+      allow delete: if admin() || owner(bizId);
+    }
+    match /{allPaths=**} { allow read, write: if false; }
+  }
+}

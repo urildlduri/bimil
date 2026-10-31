@@ -55,7 +55,7 @@
       <input type="hidden" id="mcLng">
     </div>
     <div style="padding:0 16px 16px">
-      <button class="adm-btn" style="background:var(--y);color:#000;width:100%;justify-content:center" onclick="createMerchantNow()">계정 생성하기</button>
+      <button class="adm-btn" style="background:var(--y);color:#000;width:100%;justify-content:center" onclick="createMerchantNow(this)">계정 생성하기</button>
     </div>
     <div id="mcResult" class="hide" style="padding:0 16px 16px"></div>
     <div style="padding:0 16px 16px">
@@ -180,7 +180,7 @@ let calls=[], biz=[];
 let callsUnsub=null, bizUnsub=null;
 
 const ST={
-  searching:['탐색중','st-search'], matched:['매칭','st-match'], done:['입장완료','st-done'],
+  searching:['탐색중','st-search'], accepted:['확정대기','st-match'], going:['이동중','st-match'], matched:['매칭','st-match'], done:['입장완료','st-done'],
   noshow:['노쇼','st-noshow'], expired:['응답없음','st-expired'], cancelled:['취소','st-cancelled']
 };
 const BST={open:['영업중','st-open'],busy:['혼잡','st-busy'],closed:['마감','st-closed']};
@@ -223,15 +223,15 @@ function renderReviews(){
     const t=r.at?.toDate?r.at.toDate():null;
     const ts=t?`${t.getMonth()+1}/${t.getDate()} ${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')}`:'';
     return `<div class="adm-row">
-      <div class="mid"><b>${'⭐'.repeat(r.rating||0)} ${r.bizName||'?'}</b>
-      <small>${(r.text||'').slice(0,80)} · ${r.userName||r.uid?.slice(0,6)||'?'} · ${ts}</small></div>
-      <button class="adm-btn danger" style="padding:6px 10px" onclick="delReview('${r.id}')">삭제</button></div>`;
+      <div class="mid"><b>${'⭐'.repeat(Math.max(0,Math.min(5,Number(r.rating)||0)))} ${NW.html(r.bizName||'?')}</b>
+      <small>${NW.html((r.text||'').slice(0,80))} · ${NW.html(r.userName||r.uid?.slice(0,6)||'?')} · ${ts}</small></div>
+      <button class="adm-btn danger" style="padding:6px 10px" onclick="delReview('${NW.inline(r.id)}')">삭제</button></div>`;
   }).join('');
 }
 window.delReview=async(id)=>{
   if(!confirm('이 리뷰를 삭제할까요?'))return;
   const {doc,deleteDoc}=NW.fb;
-  await deleteDoc(doc(NW.db,'reviews',id)).catch(e=>toast('실패: '+e.message));
+  try{ await deleteDoc(doc(NW.db,'reviews',id)); }catch(e){toast('실패: '+e.message);return;}
   toast('리뷰 삭제 완료');
 };
 
@@ -240,7 +240,7 @@ function isLive(c){return c.status==='searching' && (!c.expiresAt || tsMs(c.expi
 function render(){
   const live=calls.filter(isLive).length;
   const total=calls.length;
-  const match=calls.filter(c=>['matched','done'].includes(c.status)).length;
+  const match=calls.filter(c=>['accepted','going','matched','done'].includes(c.status)).length;
   const noshow=calls.filter(c=>c.status==='noshow').length;
   const finished=calls.filter(c=>c.status!=='searching').length;
   const rate=finished? Math.round((match/finished)*100):0;
@@ -258,10 +258,10 @@ function renderFeed(){
     const ts=t?`${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')}:${String(t.getSeconds()).padStart(2,'0')}`:'--';
     let extra='';
     if(isLive(c)){const left=(tsMs(c.expiresAt)-nowMs())/1000;extra=` · ⏱${fmtT(left)}`;}
-    else if(c.status==='matched'&&c.matchExpiresAt){const left=(tsMs(c.matchExpiresAt)-nowMs())/1000;extra=left>0?` · 입장 ${fmtT(left)}`:' · 시간초과';}
-    const where=c.matchedBizName?` → ${c.matchedBizName}`:'';
+    else if(['going','matched'].includes(c.status)&&c.matchExpiresAt){const left=(tsMs(c.matchExpiresAt)-nowMs())/1000;extra=left>0?` · 입장 ${fmtT(left)}`:' · 시간초과';}
+    const where=c.matchedBizName?` → ${NW.html(c.matchedBizName)}`:'';
     return `<div class="adm-row"><div class="em">${cat.e}</div>
-      <div class="mid"><b>${c.party}명 · ${cat.n}${where}</b><small>${ts}${extra} · ${c.id.slice(0,6)}</small></div>
+      <div class="mid"><b>${NW.html(c.party)}명 · ${NW.html(cat.n)}${where}</b><small>${ts}${extra} · ${NW.html(c.id.slice(0,6))}</small></div>
       <span class="st ${st[1]}">${st[0]}</span></div>`;
   }).join('');
 }
@@ -273,46 +273,47 @@ function renderBiz(){
   if(!pending.length){$('pendList').innerHTML='<div class="adm-empty">대기 중인 신청이 없습니다.</div>';}
   else $('pendList').innerHTML=pending.map(b=>{const cat=catOf(b.cat);
     return `<div class="adm-row"><div class="em">${cat.e}</div>
-      <div class="mid"><b>${b.name||'매장'}</b>
-      <small>${cat.n} · ${b.ownerName||b.ownerEmail||'?'} · ${(b.lat||0).toFixed(3)},${(b.lng||0).toFixed(3)}</small></div>
+      <div class="mid"><b>${NW.html(b.name||'매장')}</b>
+      <small>${NW.html(cat.n)} · ${NW.html(b.ownerName||b.ownerEmail||'?')} · ${(b.lat||0).toFixed(3)},${(b.lng||0).toFixed(3)}</small></div>
       <div style="display:flex;gap:6px">
-        <button class="adm-btn" style="padding:7px 12px;color:var(--ok);border-color:var(--ok)" onclick="approve('${b.id}')">승인</button>
-        <button class="adm-btn danger" style="padding:7px 12px" onclick="reject('${b.id}','${(b.name||'').replace(/'/g,'')}')">거절</button>
+        <button class="adm-btn" style="padding:7px 12px;color:var(--ok);border-color:var(--ok)" onclick="approve('${NW.inline(b.id)}')">승인</button>
+        <button class="adm-btn danger" style="padding:7px 12px" onclick="reject('${NW.inline(b.id)}','${NW.inline((b.name||'').replace(/'/g,''))}')">거절</button>
       </div></div>`;}).join('');
   // 승인 매장
   $('bizCnt').textContent=approved.length+'곳';$('sBiz').textContent=approved.length;
   if(!approved.length){$('bizList').innerHTML='<div class="adm-empty">승인된 매장이 없습니다.</div>';return;}
   $('bizList').innerHTML=approved.map(b=>{const cat=catOf(b.cat);const st=BST[b.status]||['?','st-closed'];
-    const rating=b.ratingAvg?`⭐ ${(+b.ratingAvg).toFixed(1)}(${b.ratingCount||0})`:'';
+    const rating=b.ratingAvg?`⭐ ${(+b.ratingAvg).toFixed(1)}(${NW.html(b.ratingCount||0)})`:'';
     const hotBtn=b.isHot
-      ? `<button class="adm-btn" style="padding:6px 10px;color:var(--y);border-color:var(--y)" onclick="toggleHot('${b.id}',false)">🔥 핫플 ON</button>`
-      : `<button class="adm-btn" style="padding:6px 10px" onclick="toggleHot('${b.id}',true)">🔥 핫플 OFF</button>`;
+      ? `<button class="adm-btn" style="padding:6px 10px;color:var(--y);border-color:var(--y)" onclick="toggleHot('${NW.inline(b.id)}',false)">🔥 핫플 ON</button>`
+      : `<button class="adm-btn" style="padding:6px 10px" onclick="toggleHot('${NW.inline(b.id)}',true)">🔥 핫플 OFF</button>`;
     return `<div class="adm-row"><div class="em">${cat.e}</div>
-      <div class="mid"><b>${b.name||'매장'} ${b.demo?'<span style="color:var(--tx3);font-size:11px">[데모]</span>':''}</b>
-      <small>${cat.n} · 반경 ${distLabel(b.radius||1000)} · ${b.ownerName||b.ownerEmail||'데모'} ${rating?'· '+rating:''}</small></div>
+      <div class="mid"><b>${NW.html(b.name||'매장')} ${b.demo?'<span style="color:var(--tx3);font-size:11px">[데모]</span>':''}</b>
+      <small>${NW.html(cat.n)} · 반경 ${distLabel(b.radius||1000)} · ${NW.html(b.ownerName||b.ownerEmail||'데모')} ${rating?'· '+rating:''}</small></div>
       <span class="st ${st[1]}">${st[0]}</span>
       <div style="display:flex;gap:6px;flex-shrink:0">
         ${hotBtn}
-        <button class="adm-btn danger" style="padding:6px 10px" onclick="reject('${b.id}','${(b.name||'').replace(/'/g,'')}')">삭제</button>
+        ${b.merchantId?`<button class="adm-btn" onclick="resetMerchantPassword('${NW.inline(b.id)}',this)">비밀번호 재발급</button>`:''}
+        <button class="adm-btn danger" style="padding:6px 10px" onclick="reject('${NW.inline(b.id)}','${NW.inline((b.name||'').replace(/'/g,''))}')">삭제</button>
       </div></div>`;}).join('');
 }
 
 window.toggleHot=async(id,on)=>{
   const {doc,updateDoc}=NW.fb;
-  await updateDoc(doc(NW.db,'biz',id),{isHot:on}).catch(e=>toast('실패: '+e.message));
+  try{ await updateDoc(doc(NW.db,'biz',id),{isHot:on}); }catch(e){toast('실패: '+e.message);return;}
   toast(on?'🔥 핫플로 등록됨':'핫플에서 제외됨');
 };
 
 /* ── 파트너 승인/거절/삭제 ── */
 window.approve=async(id)=>{
   const {doc,updateDoc}=NW.fb;
-  await updateDoc(doc(NW.db,'biz',id),{approved:true}).catch(e=>toast('승인 실패: '+e.message));
+  try{ await updateDoc(doc(NW.db,'biz',id),{approved:true}); }catch(e){toast('승인 실패: '+e.message);return;}
   toast('✓ 매장 승인 완료');
 };
 window.reject=async(id,name)=>{
   if(!confirm(`"${name||'이 매장'}"을(를) 삭제할까요?`))return;
   const {doc,deleteDoc}=NW.fb;
-  await deleteDoc(doc(NW.db,'biz',id)).catch(e=>toast('삭제 실패: '+e.message));
+  try{ await deleteDoc(doc(NW.db,'biz',id)); }catch(e){toast('삭제 실패: '+e.message);return;}
   toast('매장 삭제 완료');
 };
 /* 데모 매장(승인 상태) 생성 — 관리자 위치 기준 */
@@ -323,7 +324,7 @@ window.spawnDemo=async()=>{
   });
   const {collection,addDoc,serverTimestamp}=NW.fb;
   const off=[[0.0012,0.0008],[-0.0009,0.0014],[0.0018,-0.0006]];
-  const demos=[{name:'데모 라운지펍',cat:'pub'},{name:'데모 코인노래방',cat:'karaoke'},{name:'데모 방탈출 강남',cat:'escape'}];
+  const demos=[{name:'데모 노래주점',cat:'karaoke_bar'},{name:'데모 노래연습장',cat:'karaoke'},{name:'데모 스파',cat:'spa'}];
   for(let i=0;i<demos.length;i++){
     await addDoc(collection(NW.db,'biz'),{...demos[i],radius:2000,
       lat:loc.lat+off[i][0],lng:loc.lng+off[i][1],status:'open',approved:true,
@@ -335,11 +336,11 @@ window.spawnDemo=async()=>{
 /* ── 테스트용 정리 도구 ── */
 async function delDocs(arr,col){
   const {doc,deleteDoc}=NW.fb;let n=0;
-  for(const d of arr){await deleteDoc(doc(NW.db,col,d.id)).catch(()=>{});n++;}
+  for(const d of arr){try{ await deleteDoc(doc(NW.db,col,d.id));n++; }catch(e){toast('일부 삭제 실패: '+e.message);}}
   return n;
 }
 window.cleanFinished=async()=>{
-  const target=calls.filter(c=>c.status!=='searching'&&c.status!=='matched');
+  const target=calls.filter(c=>!['searching','accepted','going','matched'].includes(c.status));
   if(!target.length){toast('정리할 종료 호출이 없어요.');return;}
   if(!confirm(`종료된 호출 ${target.length}건을 삭제할까요?`))return;
   const n=await delDocs(target,'calls');toast(`${n}건 정리 완료`);
@@ -366,7 +367,7 @@ window.openMerchantCreator=()=>{
   const panel = $('merchantCreator');
   panel.classList.toggle('hide');
   if(!panel.classList.contains('hide')){
-    $('mcCat').innerHTML = NW.CATS.map(c=>`<option value="${c.k}">${c.e} ${c.n}</option>`).join('');
+    $('mcCat').innerHTML = NW.CATS.map(c=>`<option value="${c.k}">${c.e} ${NW.html(c.n)}</option>`).join('');
     renderMcHistory();
   }
 };
@@ -400,7 +401,7 @@ window.geocodeAddr=async()=>{
   }
 };
 
-window.createMerchantNow=async()=>{
+window.createMerchantNow=async(btn)=>{
   const name = $('mcName').value.trim();
   const cat = $('mcCat').value;
   const addr = $('mcAddr').value.trim();
@@ -411,7 +412,6 @@ window.createMerchantNow=async()=>{
   if(!addr){ toast('주소를 입력해주세요'); return; }
   if(isNaN(lat)||isNaN(lng)){ toast('📍 좌표 찾기 버튼을 먼저 눌러주세요'); return; }
 
-  const btn = event.target;
   btn.disabled = true; btn.textContent = '생성 중…';
   try{
     const result = await NW.adminCreateMerchant({name, cat, addr, lat, lng});
@@ -434,23 +434,37 @@ function renderMcResult(result, name){
   el.classList.remove('hide');
   el.innerHTML = `
     <div style="background:var(--okbg);border:1.5px solid var(--ok);border-radius:10px;padding:14px">
-      <div style="font-size:13px;font-weight:700;color:var(--ok);margin-bottom:10px">✅ "${name}" 계정 생성 완료 — 사장님께 전달하세요</div>
+      <div style="font-size:13px;font-weight:700;color:var(--ok);margin-bottom:10px">✅ "${NW.html(name)}" 계정 생성 완료 — 사장님께 전달하세요</div>
       <div style="background:var(--bg2);border-radius:8px;padding:12px;font-family:var(--mono)">
         <div style="display:flex;justify-content:space-between;margin-bottom:6px">
           <span style="color:var(--tx3);font-size:12px">아이디</span>
-          <b style="font-size:14px">${result.merchantId}</b>
+          <b style="font-size:14px">${NW.html(result.merchantId)}</b>
         </div>
         <div style="display:flex;justify-content:space-between">
           <span style="color:var(--tx3);font-size:12px">비밀번호</span>
-          <b style="font-size:14px">${result.password}</b>
+          <b style="font-size:14px">${NW.html(result.password)}</b>
         </div>
       </div>
-      <button onclick="copyMcCreds('${result.merchantId}','${result.password}')" style="width:100%;margin-top:10px;background:var(--ok);color:#fff;padding:9px;border-radius:8px;font-size:12px;font-weight:700">📋 복사하기</button>
+      <button onclick="copyMcCreds('${NW.inline(result.merchantId)}','${NW.inline(result.password)}')" style="width:100%;margin-top:10px;background:var(--ok);color:#fff;padding:9px;border-radius:8px;font-size:12px;font-weight:700">📋 복사하기</button>
     </div>`;
 }
 
+window.resetMerchantPassword=async(bizId,btn)=>{
+  if(!confirm('새 비밀번호를 발급할까요? 기존 비밀번호는 즉시 사용할 수 없게 됩니다.'))return;
+  btn.disabled=true;
+  try{
+    const result=await NW.adminResetMerchantPassword(bizId);
+    const b=biz.find(x=>x.id===bizId);
+    $('merchantCreator').classList.remove('hide');
+    renderMcResult(result,(b?.name||'매장')+' — 비밀번호 재발급');
+    $('mcResult').scrollIntoView({behavior:'smooth',block:'center'});
+    toast('재발급 완료. 새 비밀번호를 전달해주세요');
+  }catch(e){toast('재발급 실패: '+e.message);}
+  finally{btn.disabled=false;}
+};
+
 window.copyMcCreds=(id,pw)=>{
-  const text = `[BIMILCALL 매장 로그인]\n아이디: ${id}\n비밀번호: ${pw}\nohdiga.com 에서 로그인하세요.`;
+  const text = `[BIMILCALL 매장 로그인]\n아이디: ${id}\n비밀번호: ${pw}\n${NW.SITE_URL} 에서 로그인하세요.`;
   navigator.clipboard.writeText(text).then(()=>toast('📋 복사됨')).catch(()=>toast('복사 실패 — 직접 선택해주세요'));
 };
 
@@ -459,8 +473,8 @@ function renderMcHistory(){
   if(!mcHistoryList.length){ el.innerHTML='<div class="muted" style="font-size:12px">아직 생성한 계정이 없어요.</div>'; return; }
   el.innerHTML = mcHistoryList.map(m=>`
     <div style="background:var(--bg2);border:1px solid var(--bd);border-radius:8px;padding:10px 12px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;font-size:12px">
-      <div><b>${m.name}</b><div style="color:var(--tx3);font-family:var(--mono);margin-top:2px">${m.merchantId} / ${m.password}</div></div>
-      <button onclick="copyMcCreds('${m.merchantId}','${m.password}')" style="background:var(--bg3);color:var(--y);padding:6px 10px;border-radius:6px;font-size:11px;font-weight:700">복사</button>
+      <div><b>${NW.html(m.name)}</b><div style="color:var(--tx3);font-family:var(--mono);margin-top:2px">${NW.html(m.merchantId)} / ${NW.html(m.password)}</div></div>
+      <button onclick="copyMcCreds('${NW.inline(m.merchantId)}','${NW.inline(m.password)}')" style="background:var(--bg3);color:var(--y);padding:6px 10px;border-radius:6px;font-size:11px;font-weight:700">복사</button>
     </div>`).join('');
 }
 
@@ -539,7 +553,7 @@ async function loadDashboard(){
 
     $('dBizByCat').innerHTML = Object.entries(byCatMap).map(([cat,n])=>{
       const c = NW.CATS.find(x=>x.k===cat) || {e:'❓', n:cat};
-      return `<span style="background:var(--bg3);padding:5px 10px;border-radius:8px;font-size:12px;font-weight:700">${c.e} ${c.n}: <b style="color:var(--y)">${n}</b></span>`;
+      return `<span style="background:var(--bg3);padding:5px 10px;border-radius:8px;font-size:12px;font-weight:700">${c.e} ${NW.html(c.n)}: <b style="color:var(--y)">${n}</b></span>`;
     }).join('') || '<span class="muted" style="font-size:12px">데이터 없음</span>';
   }catch(e){console.warn('biz 통계 실패',e);}
 
@@ -587,7 +601,7 @@ async function loadDashboard(){
     $('dPostsLikes').textContent=pLikes.toLocaleString();
     $('dPostsByCat').innerHTML = Object.entries(byCatMap).map(([cat,n])=>{
       const lbl = COMM_CAT_NAMES[cat]||cat;
-      return `<span style="background:var(--bg3);padding:5px 10px;border-radius:8px;font-size:12px;font-weight:700">${lbl}: <b style="color:var(--y)">${n}</b></span>`;
+      return `<span style="background:var(--bg3);padding:5px 10px;border-radius:8px;font-size:12px;font-weight:700">${NW.html(lbl)}: <b style="color:var(--y)">${n}</b></span>`;
     }).join('') || '<span class="muted" style="font-size:12px">데이터 없음</span>';
   }catch(e){console.warn('community 통계 실패',e);}
 
