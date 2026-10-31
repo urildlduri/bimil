@@ -186,7 +186,7 @@ function subShow(id){document.querySelectorAll('body>.scr').forEach(s=>s.classLi
       myBizId=biz.id; myBiz={...biz};
       openConsole();
     }else if(biz && !biz.approved){
-      $('pendName').textContent=`"${biz.name}" 신청이 접수되었어요.`;
+      $('pendName').textContent=`"${NW.html(biz.name)}" 신청이 접수되었어요.`;
       subShow('m-pending');
     }else{
       location.replace('user.html');
@@ -195,15 +195,16 @@ function subShow(id){document.querySelectorAll('body>.scr').forEach(s=>s.classLi
 })();
 
 function openConsole(){
+  if(myBizId!==NW.uid && !NW.isAdmin(NW.user)){subShow('m-pending');$('pendName').textContent='기존 매장 ID 전환이 필요합니다. 운영자에게 문의해주세요.';return;}
   subShow('m-console');
   NW.mountAccount('acct');
   $('cBizName').textContent=myBiz.name;
-  $('cBizCat').textContent=catOf(myBiz.cat).e+' '+catOf(myBiz.cat).n+' · 반경 '+distLabel(myBiz.radius);
+  $('cBizCat').textContent=catOf(myBiz.cat).e+' '+catOf(myBiz.cat).n+' · 반경 '+distLabel(myBiz.radius||1000);
   const pin=$('cBizPin'); if(pin) pin.textContent=myBiz.lat.toFixed(4)+', '+myBiz.lng.toFixed(4);
-  const p2=$('cBizPin2'); if(p2) p2.textContent=myBiz.lat.toFixed(5)+', '+myBiz.lng.toFixed(5)+' · 반경 '+distLabel(myBiz.radius);
+  const p2=$('cBizPin2'); if(p2) p2.textContent=myBiz.lat.toFixed(5)+', '+myBiz.lng.toFixed(5)+' · 반경 '+distLabel(myBiz.radius||1000);
   // 직원 관리 버튼은 오너에게만 보임
   const memBtn=$('memBtn');
-  if(memBtn) memBtn.classList.toggle('hide', myBiz.ownerId!==NW.uid);
+  if(memBtn) memBtn.classList.add('hide'); // UID 전용 계정: 이메일 직원 공유 중단
   setBizStatus(myBiz.status,true); listenCalls(); listenArrivals();
 }
 
@@ -216,8 +217,8 @@ function renderMembers(){
   const list=myBiz.memberEmails||[];
   if(!list.length){$('memList').innerHTML='<div class="muted" style="font-size:13px">아직 등록된 직원이 없어요.</div>';return;}
   $('memList').innerHTML=list.map(em=>`
-    <div class="hist-item"><div class="hi-l"><b>${em}</b></div>
-    <button class="adm-btn danger" style="padding:6px 10px" onclick="removeMember('${em}')">제거</button></div>`).join('');
+    <div class="hist-item"><div class="hi-l"><b>${NW.html(em)}</b></div>
+    <button class="adm-btn danger" style="padding:6px 10px" onclick="removeMember('${NW.inline(em)}')">제거</button></div>`).join('');
 }
 window.addMember=async()=>{
   const em=$('memEmail').value.trim().toLowerCase();
@@ -237,7 +238,7 @@ window.addMember=async()=>{
   }
 };
 window.removeMember=async(em)=>{
-  if(!confirm(`"${em}" 직원을 제거할까요?`))return;
+  if(!confirm(`"${NW.html(em)}" 직원을 제거할까요?`))return;
   const next=(myBiz.memberEmails||[]).filter(x=>x!==em);
   const {doc,updateDoc}=NW.fb;
   try{
@@ -257,12 +258,12 @@ window.openEdit=()=>{
   $('ePhoto').value=myBiz.photo||'';
   renderPhotoPreview(myBiz.photo||'');
   $('eWebsite').value=myBiz.website||'';
-  $('eMenu').value=(myBiz.menu||[]).map(m=>`${m.name},${m.price||0}`).join('\n');
+  $('eMenu').value=(myBiz.menu||[]).map(m=>`${NW.html(m.name)},${m.price||0}`).join('\n');
   $('eHours').value=myBiz.hours||'';
   $('ePhone').value=myBiz.phone||'';
   $('eParking').classList.toggle('on',!!myBiz.parking);
   $('eReserv').classList.toggle('on',!!myBiz.reservation);
-  $('eCat').innerHTML=CATS.map(c=>`<button class="chip ${c.k===eSel.cat?'on':''}" data-c="${c.k}" onclick="ePickCat('${c.k}')">${c.e} ${c.n}</button>`).join('');
+  $('eCat').innerHTML=CATS.map(c=>`<button class="chip ${c.k===eSel.cat?'on':''}" data-c="${c.k}" onclick="ePickCat('${NW.inline(c.k)}')">${c.e} ${NW.html(c.n)}</button>`).join('');
   $('eRad').innerHTML=RADII.map(r=>`<button class="chip ${r===eSel.rad?'on':''}" data-r="${r}" onclick="ePickRad(${r})">${distLabel(r)}</button>`).join('');
   $('eMinParty').innerHTML=[1,2,3,4].map(n=>`<button class="chip ${n===eSel.minParty?'on':''}" data-m="${n}" onclick="ePickMin(${n})">${n}명 가능${n===4?'+':''}</button>`).join('');
   drawEditMap();
@@ -270,7 +271,7 @@ window.openEdit=()=>{
 function renderPhotoPreview(url){
   const el=$('ePhotoPreview');
   if(!el) return;
-  if(url){ el.innerHTML=`<img src="${url}" style="width:100%;height:100%;object-fit:cover">`; }
+  if(url){ url=NW.safeURL(url); el.innerHTML=`<img src="${NW.html(url)}" style="width:100%;height:100%;object-fit:cover">`; }
   else{ el.innerHTML='사진 없음'; el.style.color='var(--tx3)'; }
 }
 window.handlePhotoSelect=async(event)=>{
@@ -333,7 +334,7 @@ window.saveEdit=async()=>{
   if(isNaN(lat)||isNaN(lng)){toast('위치 좌표가 필요해요');return;}
   const menu=$('eMenu').value.split('\n').map(l=>l.trim()).filter(Boolean).map(l=>{const i=l.lastIndexOf(',');if(i<0)return{name:l,price:0};return{name:l.slice(0,i).trim(),price:parseInt(l.slice(i+1).replace(/[^0-9]/g,''))||0};});
   const patch={name:$('eName').value.trim(),cat:eSel.cat,radius:eSel.rad,minParty:eSel.minParty||1,lat,lng,
-    photo:$('ePhoto').value.trim(),website:$('eWebsite').value.trim(),menu,hours:$('eHours').value.trim(),phone:$('ePhone').value.trim(),
+    photo:NW.safeURL($('ePhoto').value.trim()),website:NW.safeURL($('eWebsite').value.trim()),menu,hours:$('eHours').value.trim(),phone:$('ePhone').value.trim(),
     parking:$('eParking').classList.contains('on'),reservation:$('eReserv').classList.contains('on')};
   const {doc,updateDoc}=NW.fb;
   await updateDoc(doc(NW.db,'biz',myBizId),patch).catch(e=>{toast('저장 실패: '+e.message);throw e;});
@@ -345,6 +346,7 @@ window.saveEdit=async()=>{
 };
 let arrUnsub=null, arrivals=[], arrTimer=null;
 function listenArrivals(){
+  if(arrUnsub)arrUnsub();
   const {collection,query,where,onSnapshot}=NW.fb;
   console.log('[listenArrivals] 시작 — myBizId:', myBizId);
   const q=query(collection(NW.db,'calls'),where('matchedBizId','==',myBizId));
@@ -439,26 +441,26 @@ function renderArrivals(){
   area.innerHTML='<div class="calls-grid">'+arrivals.map(c=>{
     const cat=catOf(c.cat);
     const uid=(c.callerId||'').slice(0,6)||'guest';
-    const guest = c.callerName ? `<b>${c.callerName}</b>님` : `손님 <span class="mono">#${uid}</span>`;
+    const guest = c.callerName ? `<b>${NW.html(c.callerName)}</b>님` : `손님 <span class="mono">#${NW.html(uid)}</span>`;
     if(c.status==='accepted'){
       const left=c.goingDeadline?(tsMs(c.goingDeadline)-nowMs())/1000:0;
       return `<div class="callcard" style="border-color:var(--soon)">
-        <div class="ch"><div class="party">${c.party}<span>명</span></div>
+        <div class="ch"><div class="party">${NW.html(c.party)}<span>명</span></div>
           <div class="dist mono" style="background:var(--soonbg);color:var(--soon)">응답 대기</div></div>
-        <div class="cmeta">${cat.e} ${cat.n} · ${guest}</div>
+        <div class="cmeta">${cat.e} ${NW.html(cat.n)} · ${guest}</div>
         <div class="ctimer mono" style="color:var(--soon)">⏳ 손님이 「갈게요」를 누르길 대기 (${left>0?Math.ceil(left)+'초':'마감'})</div>
         </div>`;
     }
     const left=c.matchExpiresAt?(tsMs(c.matchExpiresAt)-nowMs())/1000:0;
     const over=left<=0;
     return `<div class="callcard" style="border-color:${over?'var(--no)':'var(--ok)'}">
-      <div class="ch"><div class="party">${c.party}<span>명</span></div>
+      <div class="ch"><div class="party">${NW.html(c.party)}<span>명</span></div>
         <div class="dist mono" style="background:${over?'var(--nobg)':'var(--okbg)'};color:${over?'var(--no)':'var(--ok)'}">${over?'시간초과':'도착중'}</div></div>
-      <div class="cmeta">${cat.e} ${cat.n} · ${guest}</div>
-      <div class="ctimer mono" style="color:${over?'var(--no)':'var(--soon)'}">⏱ ${over?'노쇼 가능 — 자동 처리됨':fmtT(left)+' 내 도착 예정'}</div>
+      <div class="cmeta">${cat.e} ${NW.html(cat.n)} · ${guest}</div>
+      <div class="ctimer mono" style="color:${over?'var(--no)':'var(--soon)'}">⏱ ${over?'노쇼 처리 대기':fmtT(left)+' 내 도착 예정'}</div>
       <div class="resp-row" style="margin-top:8px">
-        <button class="resp-btn rb-ok" onclick="confirmArrival('${c.id}')">✓ 도착 확인</button>
-        <button class="resp-btn rb-no" onclick="markNoShow('${c.id}')">노쇼</button>
+        <button class="resp-btn rb-ok" onclick="confirmArrival('${NW.inline(c.id)}')">✓ 도착 확인</button>
+        <button class="resp-btn rb-no" onclick="markNoShow('${NW.inline(c.id)}')">노쇼</button>
       </div>
       </div>`;}).join('')+'</div>';
 }
@@ -466,8 +468,9 @@ function renderArrivals(){
 window.confirmArrival=async(callId)=>{
   const c=arrivals.find(x=>x.id===callId);
   const name=c?.callerName||'손님';
-  if(!confirm(`${name}님이 도착했나요?`))return;
+  if(!confirm(`${NW.html(name)}님이 도착했나요?`))return;
   const {doc,updateDoc,serverTimestamp}=NW.fb;
+  /* 진단 로그 제거
   // 진단 — 인증 상태 출력
   const u=NW.auth.currentUser;
   console.log('=== 진단 정보 ===');
@@ -479,7 +482,7 @@ window.confirmArrival=async(callId)=>{
   console.log('호출 matchedBizId:', c?.matchedBizId, '→ 내 매장?', c?.matchedBizId===myBizId);
   console.log('호출 status:', c?.status);
   console.log('매장 ownerId:', myBiz?.ownerId, '→ 나와 같음?', myBiz?.ownerId===u?.uid);
-  console.log('==============');
+  console.log('=============='); */
   try{
     await updateDoc(doc(NW.db,'calls',callId),{status:'done',arrivedAt:serverTimestamp()});
     toast('🎉 도착 확인 완료');
@@ -490,8 +493,9 @@ window.confirmArrival=async(callId)=>{
 };
 window.markNoShow=async(callId)=>{
   const c=arrivals.find(x=>x.id===callId);
+  if(!c || tsMs(c.matchExpiresAt)>nowMs()){toast('도착 마감 후에만 노쇼 처리할 수 있어요');return;}
   const name=c?.callerName||'이 손님';
-  if(!confirm(`${name}을(를) 노쇼 처리할까요? (손님에게 패널티 적용)`))return;
+  if(!confirm(`${NW.html(name)}을(를) 노쇼 처리할까요? (손님에게 패널티 적용)`))return;
   const {doc,updateDoc}=NW.fb;
   try{ await updateDoc(doc(NW.db,'calls',callId),{status:'noshow'}); toast('노쇼 처리됨'); }
   catch(e){toast('실패: '+e.message);}
@@ -501,14 +505,15 @@ window.setBizStatus=async(s,silent)=>{
   $('st-open').classList.toggle('on',s==='open');
   $('st-busy').classList.toggle('on',s==='busy');
   $('st-close').classList.toggle('on',s==='closed');
-  if(myBizId){const {doc,updateDoc}=NW.fb;await updateDoc(NW.fb.doc(NW.db,'biz',myBizId),{status:s}).catch(()=>{});}
+  if(myBizId && !silent){const {doc,updateDoc}=NW.fb;await updateDoc(NW.fb.doc(NW.db,'biz',myBizId),{status:s}).catch(()=>{});}
   if(!silent)toast(s==='open'?'영업중으로 변경':s==='busy'?'혼잡 상태로 변경':'마감 처리');
 };
 function listenCalls(){
+  if(callsUnsub)callsUnsub();
   const {collection,query,where,onSnapshot}=NW.fb;
   // 단일 where(cat)만 사용 → 복합 인덱스 불필요. status는 클라이언트에서 필터.
   // 새 호출은 cats[] 배열로 저장됨. array-contains로 매칭. (구 호출도 cat=cats[0]이라 별도 처리 X)
-  const q=query(collection(NW.db,'calls'),where('cats','array-contains',myBiz.cat));
+  const q=query(collection(NW.db,'calls'),where('status','==','searching'),where('cats','array-contains',myBiz.cat));
   callsUnsub=onSnapshot(q,snap=>{
     const list=[];
     snap.forEach(d=>{const c={id:d.id,...d.data()};
@@ -521,7 +526,7 @@ function listenCalls(){
       if(!isDirectToMe){
         if(c.party < (myBiz.minParty||1))return;
         const dist=haversine(myBiz,{lat:c.lat,lng:c.lng});
-        if(dist>(myBiz.radius||2000))return;
+        if(dist>Math.min(myBiz.radius||2000,2000))return;
         c._dist=dist;
       }else{
         c._dist=haversine(myBiz,{lat:c.lat,lng:c.lng});
@@ -628,18 +633,19 @@ function vibrate(){
 function callCard(c){const cat=catOf(c.cat);const done=respondedCalls.has(c.id);let action;
   const isDirect = c.directBizId === myBizId;
   if(done)action=`<div class="resp-done" style="background:var(--okbg);color:var(--ok)">✓ 응답 완료</div>`;
-  else if(myBiz.status==='busy')action=`<div class="resp-row"><button class="resp-btn rb-soon" onclick="respond('${c.id}','soon')">10분 후</button><button class="resp-btn rb-no" onclick="respond('${c.id}','no')">불가</button></div>`;
-  else action=`<div class="resp-row"><button class="resp-btn rb-ok" onclick="respond('${c.id}','ok')">가능</button><button class="resp-btn rb-soon" onclick="respond('${c.id}','soon')">10분 후</button><button class="resp-btn rb-no" onclick="respond('${c.id}','no')">불가</button></div>`;
+  else if(myBiz.status==='busy')action=`<div class="resp-row"><button class="resp-btn rb-soon" onclick="respond('${NW.inline(c.id)}','soon')">10분 후</button><button class="resp-btn rb-no" onclick="respond('${NW.inline(c.id)}','no')">불가</button></div>`;
+  else action=`<div class="resp-row"><button class="resp-btn rb-ok" onclick="respond('${NW.inline(c.id)}','ok')">가능</button><button class="resp-btn rb-soon" onclick="respond('${NW.inline(c.id)}','soon')">10분 후</button><button class="resp-btn rb-no" onclick="respond('${NW.inline(c.id)}','no')">불가</button></div>`;
   const directBadge = isDirect ? `<div style="position:absolute;top:8px;right:8px;background:var(--y);color:#fff;font-size:11px;font-weight:800;padding:3px 8px;border-radius:6px">📞 직접호출</div>` : '';
-  return `<div class="callcard fresh" id="call-${c.id}" style="position:relative">${directBadge}<div class="ch"><div class="party">${c.party}<span>명</span></div><div class="dist mono">${distLabel(c._dist)}</div></div>
-    <div class="cmeta">${cat.e} ${cat.n} 요청${isDirect?' · 본 매장 지목':''}</div><div class="ctimer mono" id="ct-${c.id}">⏱ 대기중</div>${action}</div>`;}
+  return `<div class="callcard fresh" id="call-${c.id}" style="position:relative">${directBadge}<div class="ch"><div class="party">${NW.html(c.party)}<span>명</span></div><div class="dist mono">${distLabel(c._dist)}</div></div>
+    <div class="cmeta">${cat.e} ${NW.html(cat.n)} 요청${isDirect?' · 본 매장 지목':''}</div><div class="ctimer mono" id="ct-${c.id}">⏱ 대기중</div>${action}</div>`;}
 function startCallTimer(id,exp){if(callTimers[id])return;
   callTimers[id]=setInterval(()=>{const el=$('ct-'+id);if(!el){clearInterval(callTimers[id]);delete callTimers[id];return;}
     const left=(exp-nowMs())/1000;el.textContent='⏱ '+fmtT(left)+' 남음';if(left<=0){clearInterval(callTimers[id]);delete callTimers[id];}},500);}
 window.respond=async(callId,type)=>{
+  try{
   const {doc,getDoc,setDoc,updateDoc,onSnapshot,serverTimestamp,Timestamp}=NW.fb;
   const cs=await getDoc(doc(NW.db,'calls',callId));
-  if(!cs.exists()||cs.data().status!=='searching'){toast('이미 마감된 호출이에요.');return;}
+  if(!cs.exists()||cs.data().status!=='searching'||tsMs(cs.data().expiresAt)<=nowMs()){toast('이미 마감된 호출이에요.');return;}
   const cd=cs.data();const realDist=haversine(myBiz,{lat:cd.lat,lng:cd.lng});
   await setDoc(doc(NW.db,'calls',callId,'responses',myBizId),{bizId:myBizId,bizName:myBiz.name,cat:myBiz.cat,type,dist:realDist,
     responderUid:NW.uid, responderName:NW.user?.displayName||'', responderEmail:NW.user?.email||'',
@@ -652,16 +658,17 @@ window.respond=async(callId,type)=>{
     await updateDoc(doc(NW.db,'calls',callId),{
       status:'accepted', matchedBizId:myBizId, matchedBizName:myBiz.name,
       acceptedAt:serverTimestamp(), goingDeadline
-    }).catch(()=>{});
+    });
     toast('🎉 직접호출 수락 — 손님이 30초 안에 「갈게요」를 누르면 예약 확정');
   }else{
     toast(type==='ok'?'「가능」 응답 전송':type==='soon'?'「10분 후」 응답 전송':'「불가」 응답');
   }
   const un=onSnapshot(doc(NW.db,'calls',callId),s=>{if(!s.exists())return;const d=s.data();
-    if(d.status==='matched'&&d.matchedBizId===myBizId){un();}
-    else if(d.status==='matched'&&d.matchedBizId!==myBizId){toast('아쉽게도 다른 매장으로 매칭됐어요.');un();}
+    if(['going','matched'].includes(d.status)&&d.matchedBizId===myBizId){stats.match++;$('tsMatch').textContent=stats.match;un();}
+    else if(['going','matched'].includes(d.status)&&d.matchedBizId!==myBizId){toast('아쉽게도 다른 매장으로 매칭됐어요.');un();}
     else if(['expired','cancelled','done','noshow'].includes(d.status))un();});
   const el=$('call-'+callId);if(el){const btn=el.querySelector('.resp-row');if(btn)btn.outerHTML='<div class="resp-done" style="background:var(--okbg);color:var(--ok)">✓ 응답 완료</div>';}
+  }catch(e){toast('응답 실패: '+e.message);}
 };
 window.addEventListener('beforeunload',()=>{if(callsUnsub)callsUnsub();if(arrUnsub)arrUnsub();});
 </script>

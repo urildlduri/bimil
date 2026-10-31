@@ -1,0 +1,14 @@
+{
+  "name": "bimilcall-qa",
+  "private": true,
+  "scripts": {
+    "test:static": "node tests/static.cjs",
+    "test:rules": "firebase emulators:exec --project demo-bimilcall --only firestore,auth,storage \"node tests/security.cjs && node tests/backend.cjs\""
+  },
+  "devDependencies": {
+    "firebase-tools": "14.22.0",
+    "@firebase/rules-unit-testing": "3.0.4",
+    "firebase": "10.12.0",
+    "acorn": "^8.15.0"
+  }
+}

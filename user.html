@@ -392,11 +392,11 @@ function init(){
       a.style.cssText='font-size:12px;color:var(--y);font-weight:700;margin-right:10px';
       t.insertBefore(a,t.querySelector('#acct'));
     }
-    refreshPenalty();
+    await refreshPenalty();
     loadHotplaces();
     loadPoints();
     // 진행중인 호출 자동 복원 (위치 로딩 대기)
-    setTimeout(()=>restoreActiveCall(), 1500);
+    await restoreActiveCall();
   });
 }
 
@@ -429,9 +429,9 @@ async function restoreActiveCall(){
         return;
       }
       // 'going' 상태에서 도착 시간 지났으면 노쇼
-      if(c.status==='going' && c.matchExpiresAt && tsMs(c.matchExpiresAt)<nowMs()){
+      if(['going','matched'].includes(c.status) && c.matchExpiresAt && tsMs(c.matchExpiresAt)<nowMs()){
         const {doc,updateDoc}=NW.fb;
-        updateDoc(doc(NW.db,'calls',c.id),{status:'noshow'}).catch(()=>{});
+        NW.expireCall(c.id).then(refreshPenalty).catch(()=>{});
         return;
       }
       // 'accepted' 상태에서 30초 지났으면 자동취소
@@ -467,6 +467,12 @@ async function restoreCallState(c){
     // 호출 중 — 호출 대기 화면 복원
     sel={party:c.party, cats:c.cats||[c.cat]};
     matchData=null;
+    if(c.directBizId){
+      dcCallId=c.id; curHotBiz=biz;
+      if(!curHotBiz){ const bs=await NW.fb.getDoc(NW.fb.doc(NW.db,'biz',c.directBizId)); curHotBiz=bs.exists()?{id:bs.id,...bs.data()}:null; }
+      dcParty=c.party; $('dcTarget').textContent=c.directBizName||'매장';
+      subShow('u-direct');startDirectTimer(tsMs(c.expiresAt));listenDirectResponse(c.directBizId);return;
+    }
     const expEnd = c.expiresAt ? tsMs(c.expiresAt) : nowMs()+CALL_TTL*1000;
     subShow('u-search');
     $('resList').innerHTML=''; $('srCount').textContent='0';
@@ -519,7 +525,7 @@ async function loadHotplaces(force){
     const snap=await getDocs(query(collection(NW.db,'biz'),where('isHot','==',true)));
     let list=snap.docs.map(d=>({id:d.id,...d.data()}));
     // 3km 이내만 필터 + 거리순
-    list=list.filter(h=>h.lat&&h.lng).map(h=>{
+    list=list.filter(h=>h.approved && h.lat&&h.lng).map(h=>{
       h._dist=haversine(myLoc,{lat:h.lat,lng:h.lng});return h;
     }).filter(h=>h._dist<=HOT_RADIUS).sort((a,b)=>a._dist-b._dist);
     renderHot(list);
@@ -540,12 +546,12 @@ function renderHot(list){
     const dist=h._dist!=null?distLabel(h._dist):'';
     const rating=h.ratingAvg?`<span style="color:var(--y)">⭐ ${(+h.ratingAvg).toFixed(1)}</span>`:'';
     const img=h.photo
-      ? `<img src="${h.photo}" style="width:72px;height:72px;border-radius:10px;object-fit:cover;flex-shrink:0">`
+      ? `<img src="${NW.html(NW.safeURL(h.photo))}" style="width:72px;height:72px;border-radius:10px;object-fit:cover;flex-shrink:0">`
       : `<div class="em" style="width:72px;height:72px;font-size:32px">${cat.e}</div>`;
-    return `<div class="bizcard" style="align-items:flex-start;cursor:pointer" onclick="openHotDetail('${h.id}')">
+    return `<div class="bizcard" style="align-items:flex-start;cursor:pointer" onclick="openHotDetail('${NW.inline(h.id)}')">
       ${img}
-      <div class="info"><b>${h.name||'매장'}</b>
-        <div class="meta" style="white-space:normal;font-family:inherit;color:var(--tx2);margin-top:4px">${cat.n}${h.hours?' · '+h.hours:''}</div>
+      <div class="info"><b>${NW.html(h.name||'매장')}</b>
+        <div class="meta" style="white-space:normal;font-family:inherit;color:var(--tx2);margin-top:4px">${NW.html(cat.n)}${h.hours?' · '+NW.html(h.hours):''}</div>
         <div style="margin-top:6px;display:flex;gap:8px;align-items:center;font-size:12px">${rating}${dist?`<span class="meta">${dist}</span>`:''}</div>
       </div></div>`;
   }).join('');
@@ -558,16 +564,16 @@ function renderHot(list){
     const dist=h._dist!=null?distLabel(h._dist):'';
     const bg = colors[i%colors.length];
     const photo = h.photo
-      ? `<img src="${h.photo}" style="width:100%;height:130px;object-fit:cover;border-radius:12px">`
+      ? `<img src="${NW.html(NW.safeURL(h.photo))}" style="width:100%;height:130px;object-fit:cover;border-radius:12px">`
       : `<div style="width:100%;height:130px;border-radius:12px;background:${bg};display:flex;align-items:center;justify-content:center;font-size:48px">${cat.e}</div>`;
     const rating=h.ratingAvg?`<span style="color:var(--y);font-weight:700">★ ${(+h.ratingAvg).toFixed(1)}</span>`:'';
-    return `<div onclick="openHotDetail('${h.id}')" style="flex-shrink:0;width:158px;cursor:pointer">
+    return `<div onclick="openHotDetail('${NW.inline(h.id)}')" style="flex-shrink:0;width:158px;cursor:pointer">
       <div style="position:relative;margin-bottom:8px">
         ${photo}
         <div style="position:absolute;top:8px;left:8px;background:var(--y);color:#fff;font-size:10px;font-weight:700;padding:3px 8px;border-radius:6px">🔥 HOT</div>
       </div>
-      <div style="font-size:13px;font-weight:700;margin-bottom:2px">${h.name||'매장'}</div>
-      <div style="font-size:11px;color:var(--tx3)">${cat.n}${dist?' · '+dist:''}</div>
+      <div style="font-size:13px;font-weight:700;margin-bottom:2px">${NW.html(h.name||'매장')}</div>
+      <div style="font-size:11px;color:var(--tx3)">${NW.html(cat.n)}${dist?' · '+dist:''}</div>
       <div style="display:flex;gap:6px;margin-top:4px;font-size:11px">${rating}</div>
     </div>`;
   }).join('');
@@ -592,29 +598,30 @@ function showHotDetail(b){
   const cat=catOf(b.cat);
   // 사진
   $('hd-photo').innerHTML = b.photo
-    ? `<img src="${b.photo}" style="width:100%;height:200px;object-fit:cover;border-radius:var(--rad)" onerror="this.parentNode.innerHTML='${hotPhotoFallback(cat)}'">`
+    ? `<img src="${NW.html(NW.safeURL(b.photo))}" style="width:100%;height:200px;object-fit:cover;border-radius:var(--rad)" onerror="this.style.display='none'">`
     : hotPhotoFallback(cat);
   $('hd-name').textContent=b.name||'매장';
   const dist=myLoc&&b.lat&&b.lng?' · '+distLabel(haversine(myLoc,{lat:b.lat,lng:b.lng})):'';
-  $('hd-meta').textContent=`${cat.e} ${cat.n}${dist}`;
+  $('hd-meta').textContent=`${cat.e} ${NW.html(cat.n)}${dist}`;
   // 별점
   if(b.ratingAvg){
-    $('hd-rating').innerHTML=`<div style="text-align:right"><div style="color:var(--y);font-size:18px;font-weight:800">⭐ ${(+b.ratingAvg).toFixed(1)}</div><div style="color:var(--tx3);font-size:11px">리뷰 ${b.ratingCount||0}개</div></div>`;
+    $('hd-rating').innerHTML=`<div style="text-align:right"><div style="color:var(--y);font-size:18px;font-weight:800">⭐ ${(+b.ratingAvg).toFixed(1)}</div><div style="color:var(--tx3);font-size:11px">리뷰 ${NW.html(b.ratingCount||0)}개</div></div>`;
   }else{
     $('hd-rating').innerHTML=`<div style="color:var(--tx3);font-size:12px">아직 별점 없음</div>`;
   }
   // 길찾기
+  $('hd-route').classList.toggle('hide',!(b.lat&&b.lng));
   if(b.lat&&b.lng)$('hd-route').href=NW.kakaoRoute(b.name,b.lat,b.lng);
   else $('hd-route').classList.add('hide');
   // 연락처 / 홈페이지
   const contact=[];
-  if(b.phone) contact.push(`<div class="row"><span>전화</span><b><a href="tel:${b.phone}" style="color:var(--y)">${b.phone}</a></b></div>`);
-  if(b.website) contact.push(`<div class="row"><span>홈페이지</span><b><a href="${b.website}" target="_blank" rel="noopener" style="color:var(--y)">바로가기 →</a></b></div>`);
+  if(b.phone) contact.push(`<div class="row"><span>전화</span><b><a href="tel:${NW.html(b.phone)}" style="color:var(--y)">${NW.html(b.phone)}</a></b></div>`);
+  if(b.website) contact.push(`<div class="row"><span>홈페이지</span><b><a href="${NW.html(NW.safeURL(b.website))}" target="_blank" rel="noopener" style="color:var(--y)">바로가기 →</a></b></div>`);
   $('hd-contact').innerHTML=contact.length?`<div class="bizdetail" style="margin-top:18px">${contact.join('')}</div>`:'';
   // 메뉴
   if(b.menu&&b.menu.length){
     $('hd-menu').innerHTML=`<div class="h2" style="margin-top:24px">메뉴</div><div class="bizdetail">`+
-      b.menu.map(m=>`<div class="row"><span style="color:var(--tx)">${m.name}</span><b>${m.price?m.price.toLocaleString()+'원':'-'}</b></div>`).join('')+`</div>`;
+      b.menu.map(m=>`<div class="row"><span style="color:var(--tx)">${NW.html(m.name)}</span><b>${NW.html(m.price?m.price.toLocaleString()+'원':'-')}</b></div>`).join('')+`</div>`;
   }else $('hd-menu').innerHTML='';
   // 영업정보
   const info=[];
@@ -622,7 +629,7 @@ function showHotDetail(b){
   info.push(['주차',b.parking?'가능':'정보없음']);
   info.push(['예약',b.reservation?'가능':'정보없음']);
   $('hd-info').innerHTML=`<div class="h2" style="margin-top:24px">영업정보</div><div class="bizdetail">`+
-    info.map(r=>`<div class="row"><span>${r[0]}</span><b>${r[1]}</b></div>`).join('')+`</div>`;
+    info.map(r=>`<div class="row"><span>${r[0]}</span><b>${NW.html(r[1])}</b></div>`).join('')+`</div>`;
   // 지도
   drawHotMap(b);
   // 핫플 직접호출 인원 칩
@@ -673,6 +680,7 @@ const COMM_NICK_PREFIXES = ['달림이','강남신사','역삼남','선릉형','
 
 let commCurrentCat = 'all';
 let commUnsub = null;
+let commCommentUnsub=null, curCommPostId=null, commCommentNick=null;
 let commCachedNick = null; // 작성 모달용
 
 function genNickname(){
@@ -711,7 +719,7 @@ async function loadCommunity(){
 function buildCommTabs(){
   $('commTabs').innerHTML = COMM_CATS.map(c=>{
     const on = commCurrentCat===c.k;
-    return `<button onclick="setCommCat('${c.k}')" style="flex-shrink:0;padding:8px 14px;border-radius:20px;font-size:12px;font-weight:700;border:1.5px solid ${on?'var(--y)':'var(--bd)'};background:${on?'var(--y)':'transparent'};color:${on?'#000':'var(--tx2)'};white-space:nowrap;cursor:pointer">${c.n}</button>`;
+    return `<button onclick="setCommCat('${NW.inline(c.k)}')" style="flex-shrink:0;padding:8px 14px;border-radius:20px;font-size:12px;font-weight:700;border:1.5px solid ${on?'var(--y)':'var(--bd)'};background:${on?'var(--y)':'transparent'};color:${on?'#000':'var(--tx2)'};white-space:nowrap;cursor:pointer">${NW.html(c.n)}</button>`;
   }).join('');
 }
 window.setCommCat=(k)=>{commCurrentCat=k; buildCommTabs(); loadCommunity();};
@@ -731,7 +739,7 @@ function renderCommList(posts){
     const catColor = commCatColor(p.category);
     const catLabel = commCatLabel(p.category).replace(/^[^\s]+\s/,''); // 이모지 빼기
     const catEmoji = commCatLabel(p.category).match(/^[^\s]+/)?.[0]||'';
-    return `<div onclick="openCommDetail('${p.id}')" style="padding:16px 20px;border-bottom:1px solid var(--bd);cursor:pointer;transition:.12s" onmouseover="this.style.background='var(--bg2)'" onmouseout="this.style.background='transparent'">
+    return `<div onclick="openCommDetail('${NW.inline(p.id)}')" style="padding:16px 20px;border-bottom:1px solid var(--bd);cursor:pointer;transition:.12s" onmouseover="this.style.background='var(--bg2)'" onmouseout="this.style.background='transparent'">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
         <span style="font-size:10px;font-weight:700;color:${catColor};background:${catColor}22;padding:3px 8px;border-radius:6px">${catEmoji} ${catLabel}</span>
         <span style="font-size:11px;color:var(--tx3)">${ts}</span>
@@ -740,8 +748,8 @@ function renderCommList(posts){
       <div style="font-size:12px;color:var(--tx2);line-height:1.5;max-height:36px;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">${escapeHtml((p.content||'').slice(0,120))}</div>
       <div style="display:flex;align-items:center;gap:14px;margin-top:10px;font-size:11px;color:var(--tx3)">
         <span style="color:var(--y);font-weight:700">🎭 ${escapeHtml(p.nickname||'익명')}</span>
-        <span>❤️ ${p.likes||0}</span>
-        <span>💬 ${p.commentCount||0}</span>
+        <span>❤️ ${NW.html(p.likes||0)}</span>
+        <span>💬 ${NW.html(p.commentCount||0)}</span>
       </div>
     </div>`;
   }).join('');
@@ -772,7 +780,7 @@ window.openCommWrite=()=>{
   if(!writeCats.find(c=>c.k===commWriteCat)) commWriteCat = writeCats[0].k;
   $('commCatChips').innerHTML = writeCats.map(c=>{
     const on = commWriteCat===c.k;
-    return `<button onclick="pickCommCat('${c.k}')" style="padding:8px 12px;border-radius:18px;font-size:12px;font-weight:700;border:1.5px solid ${on?'var(--y)':'var(--bd)'};background:${on?'var(--y)':'transparent'};color:${on?'#000':'var(--tx2)'};cursor:pointer">${c.n}</button>`;
+    return `<button onclick="pickCommCat('${NW.inline(c.k)}')" style="padding:8px 12px;border-radius:18px;font-size:12px;font-weight:700;border:1.5px solid ${on?'var(--y)':'var(--bd)'};background:${on?'var(--y)':'transparent'};color:${on?'#000':'var(--tx2)'};cursor:pointer">${NW.html(c.n)}</button>`;
   }).join('');
   $('commTitle').value='';
   $('commContent').value='';
@@ -786,7 +794,7 @@ function openCommWrite_refreshChips(){
   const writeCats = COMM_CATS.filter(c=>c.k!=='all');
   $('commCatChips').innerHTML = writeCats.map(c=>{
     const on = commWriteCat===c.k;
-    return `<button onclick="pickCommCat('${c.k}')" style="padding:8px 12px;border-radius:18px;font-size:12px;font-weight:700;border:1.5px solid ${on?'var(--y)':'var(--bd)'};background:${on?'var(--y)':'transparent'};color:${on?'#000':'var(--tx2)'};cursor:pointer">${c.n}</button>`;
+    return `<button onclick="pickCommCat('${NW.inline(c.k)}')" style="padding:8px 12px;border-radius:18px;font-size:12px;font-weight:700;border:1.5px solid ${on?'var(--y)':'var(--bd)'};background:${on?'var(--y)':'transparent'};color:${on?'#000':'var(--tx2)'};cursor:pointer">${NW.html(c.n)}</button>`;
   }).join('');
 }
 
@@ -852,11 +860,11 @@ window.openCommDetail=async(postId)=>{
           <div><div style="font-size:13px;color:var(--y);font-weight:700">${escapeHtml(p.nickname||'익명')}</div>
             <div style="font-size:11px;color:var(--tx3)">${ts}</div></div>
         </div>
-        ${isMine?`<button onclick="deleteCommPost('${postId}')" style="background:var(--nobg);color:var(--no);border:1px solid var(--no);padding:6px 12px;font-size:11px;font-weight:700;border-radius:8px;cursor:pointer">🗑 삭제</button>`:''}
+        ${isMine?`<button onclick="deleteCommPost('${NW.inline(postId)}')" style="background:var(--nobg);color:var(--no);border:1px solid var(--no);padding:6px 12px;font-size:11px;font-weight:700;border-radius:8px;cursor:pointer">🗑 삭제</button>`:''}
       </div>
       <div style="font-size:15px;line-height:1.8;margin-top:20px;white-space:pre-wrap;color:var(--tx)">${escapeHtml(p.content)}</div>
       <div style="margin-top:30px;display:flex;align-items:center;gap:14px">
-        <button onclick="likeCommPost('${postId}')" style="background:var(--bg2);border:1px solid var(--bd);padding:10px 16px;border-radius:10px;font-size:13px;font-weight:700;color:var(--tx);cursor:pointer">❤️ ${p.likes||0}</button>
+        <button onclick="likeCommPost('${NW.inline(postId)}')" style="background:var(--bg2);border:1px solid var(--bd);padding:10px 16px;border-radius:10px;font-size:13px;font-weight:700;color:var(--tx);cursor:pointer">❤️ ${NW.html(p.likes||0)}</button>
       </div>
       <div class="muted" style="font-size:11px;margin-top:24px;text-align:center;padding:14px;background:var(--bg2);border-radius:var(--rad);border:1px solid var(--bd)">
         ※ 비방·욕설·허위정보·불법 행위 유도 게시물은 사전 통보 없이 삭제됩니다.<br>※ 익명이지만 작성자 식별이 가능하며 법적 책임은 작성자에게 있습니다.
@@ -905,7 +913,7 @@ function renderComments(postId, comments){
           <span style="font-size:12px;font-weight:700;color:var(--y)">${escapeHtml(c.nickname||'익명')}</span>
           <div style="display:flex;align-items:center;gap:8px">
             <span style="font-size:11px;color:var(--tx3)">${ts}</span>
-            ${isMine?`<button onclick="deleteComment('${postId}','${c.id}')" style="background:none;color:var(--no);border:none;font-size:11px;font-weight:700;cursor:pointer">삭제</button>`:''}
+            ${isMine?`<button onclick="deleteComment('${NW.inline(postId)}','${NW.inline(c.id)}')" style="background:none;color:var(--no);border:none;font-size:11px;font-weight:700;cursor:pointer">삭제</button>`:''}
           </div>
         </div>
         <div style="font-size:14px;line-height:1.6;color:var(--tx2);white-space:pre-wrap">${escapeHtml(c.content||'')}</div>
@@ -939,8 +947,6 @@ window.submitComment=async()=>{
       uid: NW.uid,
       at: serverTimestamp()
     });
-    // commentCount 증가
-    await updateDoc(doc(NW.db,'community',curCommPostId),{commentCount: increment(1)}).catch(()=>{});
     $('commCommentTxt').value = '';
     const el = $('commCommentCharCnt');
     if(el) el.textContent = '0 / 500';
@@ -957,7 +963,6 @@ window.deleteComment=async(postId,commentId)=>{
   try{
     const {doc,deleteDoc,updateDoc,increment} = NW.fb;
     await deleteDoc(doc(NW.db,'community',postId,'comments',commentId));
-    await updateDoc(doc(NW.db,'community',postId),{commentCount: increment(-1)}).catch(()=>{});
     toast('삭제 완료');
   }catch(e){toast('실패: '+(e.code||e.message));}
 };
@@ -965,11 +970,11 @@ window.deleteComment=async(postId,commentId)=>{
 window.likeCommPost=async(postId)=>{
   if(!NW.uid){toast('로그인이 필요합니다');return;}
   try{
-    const {doc,updateDoc,increment} = NW.fb;
-    await updateDoc(doc(NW.db,'community',postId),{likes: increment(1)});
+    const {doc,setDoc,serverTimestamp} = NW.fb;
+    await setDoc(doc(NW.db,'community',postId,'likes',NW.uid),{uid:NW.uid,at:serverTimestamp()});
     toast('❤️ 좋아요!');
     openCommDetail(postId);
-  }catch(e){toast('실패: '+(e.code||e.message));}
+  }catch(e){toast('이미 좋아요를 눌렀거나 권한이 없습니다');}
 };
 window.deleteCommPost=async(postId)=>{
   if(!confirm('이 글을 삭제할까요?'))return;
@@ -987,26 +992,17 @@ window.directCall=async()=>{
   if(!curHotBiz || !dcParty || !myLoc){toast('인원·위치를 확인하세요');return;}
   if(penalActive()){toast('패널티 적용 중입니다.');return;}
   const b=curHotBiz;
-  const {collection,addDoc,serverTimestamp,Timestamp}=NW.fb;
-  const expires=Timestamp.fromMillis(nowMs()+DIRECT_TTL*1000);
   try{
-    const ref=await addDoc(collection(NW.db,'calls'),{
-      callerId:NW.uid, callerName:(NW.profile?.nickname || NW.user?.displayName || '익명'), party:dcParty,
-      cats:[b.cat], cat:b.cat,
-      lat:myLoc.lat, lng:myLoc.lng,
-      directBizId:b.id, directBizName:b.name,   // 1:1 호출 표시
-      status:'searching', createdAt:serverTimestamp(), expiresAt:expires
-    });
+    const ref=await NW.createCall({party:dcParty,cats:[b.cat],lat:myLoc.lat,lng:myLoc.lng,directBizId:b.id});
     dcCallId=ref.id;
     $('dcTarget').textContent=b.name||'매장';
     subShow('u-direct');
-    startDirectTimer();
+    startDirectTimer(ref.expiresAt);
     listenDirectResponse(b.id);
   }catch(e){toast('호출 실패: '+e.message);}
 };
 
-function startDirectTimer(){
-  const endAt = nowMs()+DIRECT_TTL*1000;
+function startDirectTimer(endAt=nowMs()+DIRECT_TTL*1000){
   const total = DIRECT_TTL;
   if(dcTimer) clearInterval(dcTimer);
   const tick=()=>{
@@ -1048,7 +1044,7 @@ async function onDirectAccepted(d){
   cleanupDirect();
   toast('🎉 매장이 받아줬어요!');
   matchData={callId:dcCallId, id:curHotBiz?.id, bizName:d.matchedBizName||curHotBiz?.name,
-    cat:curHotBiz?.cat, type:'ok', biz:curHotBiz};
+    cat:curHotBiz?.cat, type:'ok', biz:curHotBiz,party:d.party};
   curCallId=dcCallId;
   $('acBizName').textContent=d.matchedBizName||curHotBiz?.name||'매장';
   subShow('u-accepted');
@@ -1061,7 +1057,7 @@ async function onDirectAccepted(d){
     if(left<=0){ clearInterval(acTimer); onAcceptedTimeout(); }
   };
   tick(); acTimer=setInterval(tick,500);
-  updateMatchBar();
+  matchBarState='accepted';updateMatchBar();
 }
 function onAcceptedTimeout(){
   if(curCallId){
@@ -1075,16 +1071,16 @@ function onAcceptedTimeout(){
 }
 window.confirmGoing=async()=>{
   if(!curCallId) return;
-  if(acTimer){clearInterval(acTimer); acTimer=null;}
   const {doc,updateDoc,serverTimestamp,Timestamp}=NW.fb;
   try{
     const matchExp=Timestamp.fromMillis(nowMs()+MATCH_TTL*1000);
     await updateDoc(doc(NW.db,'calls',curCallId),{
       status:'going', goingAt:serverTimestamp(), matchExpiresAt:matchExp
     });
+    if(acTimer){clearInterval(acTimer);acTimer=null;}
     toast('🚶 갈게요! 15분 안에 도착하세요.');
     await awardPoints(20, '호출 성사');
-    openMatched(nowMs()+MATCH_TTL*1000);
+    openMatched(matchExp.toMillis());
   }catch(e){toast('실패: '+e.message);}
 };
 window.declineGoing=async()=>{
@@ -1129,6 +1125,7 @@ async function cancelDirectDoc(status){
   if(!dcCallId) return;
   const {doc,updateDoc}=NW.fb;
   try{ await updateDoc(doc(NW.db,'calls',dcCallId),{status}); }catch(e){}
+  if(curCallId===dcCallId)curCallId=null;
   dcCallId=null;
 }
 
@@ -1153,8 +1150,8 @@ async function checkArrivedAt(bizId){
   try{
     const {collection,query,where,getDocs}=NW.fb;
     const snap=await getDocs(query(collection(NW.db,'calls'),
-      where('callerId','==',NW.uid),where('matchedBizId','==',bizId),where('status','==','done')));
-    return !snap.empty;
+      where('callerId','==',NW.uid)));
+    return snap.docs.find(d=>d.data().matchedBizId===bizId && d.data().status==='done')?.id||null;
   }catch(e){return false;}
 }
 function renderReviewSection(bizId,list,canReview,myReview){
@@ -1162,9 +1159,9 @@ function renderReviewSection(bizId,list,canReview,myReview){
   if(myReview){
     $('hd-myreview').innerHTML=`<div class="statbox" style="margin-top:0">
       <div style="display:flex;justify-content:space-between;align-items:start">
-        <div><b style="color:var(--y)">내 리뷰 ${'⭐'.repeat(myReview.rating)}</b>
-          <div class="muted" style="margin-top:4px;font-size:13px">${myReview.text||''}</div></div>
-        <button class="adm-btn danger" style="padding:5px 9px;font-size:11px" onclick="deleteMyReview('${myReview.id}','${bizId}')">삭제</button>
+        <div><b style="color:var(--y)">내 리뷰 ${'⭐'.repeat(Math.max(0,Math.min(5,Number(myReview.rating)||0)))}</b>
+          <div class="muted" style="margin-top:4px;font-size:13px">${NW.html(myReview.text||'')}</div></div>
+        <button class="adm-btn danger" style="padding:5px 9px;font-size:11px" onclick="deleteMyReview('${NW.inline(myReview.id)}','${NW.inline(bizId)}')">삭제</button>
       </div></div>`;
   }else if(canReview){
     $('hd-myreview').innerHTML=`<div class="statbox" style="margin-top:0">
@@ -1173,7 +1170,7 @@ function renderReviewSection(bizId,list,canReview,myReview){
         ${[1,2,3,4,5].map(n=>`<span data-n="${n}" onclick="pickStar(${n})" style="cursor:pointer;color:var(--tx3)">★</span>`).join('')}
       </div>
       <textarea class="inp" id="rvText" rows="2" placeholder="음식·분위기·서비스 등 자유롭게"></textarea>
-      <button class="cta" style="margin-top:10px" onclick="submitReview('${bizId}')">리뷰 등록</button>
+      <button class="cta" style="margin-top:10px" onclick="submitReview('${NW.inline(bizId)}')">리뷰 등록</button>
     </div>`;
   }else{
     $('hd-myreview').innerHTML=`<div class="muted" style="font-size:12px;margin-bottom:14px">방문 후 도착완료한 매장만 리뷰를 작성할 수 있어요.</div>`;
@@ -1190,8 +1187,8 @@ function renderReviewSection(bizId,list,canReview,myReview){
       const ts=t?`${t.getMonth()+1}/${t.getDate()}`:'';
       return `<div class="bizdetail" style="margin-top:10px">
         <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px">
-          <b style="color:var(--y)">${'⭐'.repeat(r.rating||0)}</b>
-          <span style="color:var(--tx3);font-size:11px">${r.userName||r.uid?.slice(0,6)||''} · ${ts}</span>
+          <b style="color:var(--y)">${'⭐'.repeat(Math.max(0,Math.min(5,Number(r.rating)||0)))}</b>
+          <span style="color:var(--tx3);font-size:11px">${NW.html(r.userName||r.uid?.slice(0,6)||'')} · ${ts}</span>
         </div>
         <div style="color:var(--tx2);font-size:13px">${(r.text||'').replace(/</g,'&lt;')}</div></div>`;
     }).join('');
@@ -1208,11 +1205,14 @@ window.submitReview=async(bizId)=>{
   const {doc,setDoc,getDoc,serverTimestamp,getDocs,collection,query,where,updateDoc}=NW.fb;
   const reviewId=`${bizId}_${NW.uid}`;
   try{
+    const callId=await checkArrivedAt(bizId);
+    if(!callId){toast('도착 완료된 방문만 리뷰를 쓸 수 있어요');return;}
+    if(text.length>1500){toast('리뷰는 1500자까지 작성 가능합니다');return;}
     // 신규 작성인지 확인 (이미 있으면 수정만, 포인트 X)
     const existing = await getDoc(doc(NW.db,'reviews',reviewId));
     const isNew = !existing.exists();
     await setDoc(doc(NW.db,'reviews',reviewId),{
-      bizId, bizName:curHotBiz?.name||'', uid:NW.uid,
+      bizId, callId, bizName:curHotBiz?.name||'', uid:NW.uid,
       userName:(NW.profile?.nickname || NW.user?.displayName || '익명'), rating:rvRating, text, at:serverTimestamp()
     });
     // 매장 평균 갱신
@@ -1231,27 +1231,16 @@ window.deleteMyReview=async(reviewId,bizId)=>{
     toast('삭제 완료'); loadHotReviews(bizId);
   }catch(e){toast('실패: '+e.message);}
 };
-async function updateBizRating(bizId){
-  const {collection,query,where,getDocs,doc,updateDoc}=NW.fb;
-  const snap=await getDocs(query(collection(NW.db,'reviews'),where('bizId','==',bizId)));
-  if(snap.empty){
-    await updateDoc(doc(NW.db,'biz',bizId),{ratingAvg:0,ratingCount:0}).catch(()=>{});
-    return;
-  }
-  let sum=0,n=0;
-  snap.forEach(d=>{const r=d.data();if(r.rating){sum+=r.rating;n++;}});
-  const avg=n?+(sum/n).toFixed(2):0;
-  await updateDoc(doc(NW.db,'biz',bizId),{ratingAvg:avg,ratingCount:n}).catch(()=>{});
-}
+async function updateBizRating(bizId){ /* 서버 settleReview가 평점을 집계합니다. */ }
 
 function buildChips(){
   $('partyChips').innerHTML=PARTY.map(p=>`<button class="chip" data-p="${p}" onclick="pickParty(${p})">${p}${p===6?'+':''}명</button>`).join('');
-  $('catChips').innerHTML=CATS.map(c=>`<button class="chip" data-c="${c.k}" onclick="pickCat('${c.k}')">${c.e} ${c.n}</button>`).join('');
+  $('catChips').innerHTML=CATS.map(c=>`<button class="chip" data-c="${c.k}" onclick="pickCat('${NW.inline(c.k)}')">${c.e} ${NW.html(c.n)}</button>`).join('');
   // 상단 카테고리 그리드 (가로 스크롤)
   const colors=['#2D1F0F','#2A1F2D','#2D2510','#2D1A24','#0F2D24','#2D2218','#0F252D','#231A2D','#2D1A24'];
-  $('catGrid').innerHTML=CATS.map((c,i)=>`<div onclick="quickPickCat('${c.k}')" style="text-align:center;flex-shrink:0;width:62px;cursor:pointer">
+  $('catGrid').innerHTML=CATS.map((c,i)=>`<div onclick="quickPickCat('${NW.inline(c.k)}')" style="text-align:center;flex-shrink:0;width:62px;cursor:pointer">
     <div style="width:54px;height:54px;border-radius:50%;background:${colors[i%colors.length]};display:flex;align-items:center;justify-content:center;font-size:26px;margin:0 auto 4px">${c.e}</div>
-    <div style="font-size:11px;font-weight:600;color:var(--tx2)">${c.n}</div></div>`).join('');
+    <div style="font-size:11px;font-weight:600;color:var(--tx2)">${NW.html(c.n)}</div></div>`).join('');
 }
 window.quickPickCat=k=>{
   // 호출 폼 카테고리 칩 활성화 + 스크롤
@@ -1282,7 +1271,7 @@ window.getLoc=async()=>{
     showLocPicker();
   }
 };
-function applyLoc(l){myLoc=l;$('locName').textContent=l.name||'선택한 위치';$('locCoord').textContent=l.lat.toFixed(4)+', '+l.lng.toFixed(4);chkReady();}
+function applyLoc(l){myLoc=l;if(NW.uid)loadHotplaces(true);$('locName').textContent=l.name||'선택한 위치';$('locCoord').textContent=l.lat.toFixed(4)+', '+l.lng.toFixed(4);chkReady();}
 let locPicker=null;
 async function showLocPicker(){
   $('locPickWrap').classList.remove('hide');
@@ -1306,6 +1295,14 @@ async function refreshPenalty(){
   penaltyUntil=s.exists()?tsMs(s.data().penaltyUntil):0;
   renderPenaltyBanner();
 }
+let penaltyUnsub=null;
+NW.onAuth(u=>{
+  if(penaltyUnsub)penaltyUnsub();
+  if(u)penaltyUnsub=NW.fb.onSnapshot(NW.fb.doc(NW.db,'users',u.uid),s=>{
+    penaltyUntil=s.exists()?tsMs(s.data().penaltyUntil):0;renderPenaltyBanner();loadPoints();
+  });
+});
+setInterval(()=>renderPenaltyBanner(),1000);
 function penalActive(){return penaltyUntil>nowMs();}
 function renderPenaltyBanner(){
   const el=$('penaltyBanner');
@@ -1315,49 +1312,26 @@ function renderPenaltyBanner(){
   chkReady();
 }
 
+let callCreating=false;
 window.startCall=async()=>{
   if(!NW.cfgOk){toast('Firebase config를 먼저 설정하세요.');return;}
   if(penalActive()){toast('패널티 적용 중입니다.');return;}
   if(!(sel.party&&sel.cats.length&&myLoc))return;
-  const {collection,addDoc,serverTimestamp,Timestamp}=NW.fb;
-  const expires=Timestamp.fromMillis(nowMs()+CALL_TTL*1000);
-  const ref=await addDoc(collection(NW.db,'calls'),{
-    callerId:NW.uid, callerName:(NW.profile?.nickname || NW.user?.displayName || '익명'), party:sel.party,
-    cats:sel.cats, cat:sel.cats[0],   // 다중 + 구버전 호환
-    lat:myLoc.lat, lng:myLoc.lng,
-    status:'searching', createdAt:serverTimestamp(), expiresAt:expires});
+  if(callCreating)return;
+  callCreating=true;$('callBtn').disabled=true;
+  try{
+  const ref=await NW.createCall({party:sel.party,cats:sel.cats,lat:myLoc.lat,lng:myLoc.lng});
   curCallId=ref.id; subShow('u-search');
   $('resList').innerHTML=''; $('srCount').textContent='0';
-  listenResponses(); runCallTimer(nowMs()+CALL_TTL*1000);
-  autoRespondDemo(ref.id);   // 데모 매장 자동 응답
+  listenResponses(); runCallTimer(ref.expiresAt);
+  }catch(e){toast('호출 실패: '+e.message);}
+  finally{callCreating=false;chkReady();}
 };
 
 /* 데모 매장(ownerId='demo') 자동 응답 — 반경·업종 맞으면 1~3초 뒤 '가능/10분후' 삽입.
    실제 매장 콘솔이 없어도 혼자 전체 흐름을 테스트할 수 있게 해줌. */
-async function autoRespondDemo(callId){
-  try{
-    const {collection,query,where,getDocs,doc,setDoc,serverTimestamp}=NW.fb;
-    const cats=sel.cats.slice();
-    // 'in' 쿼리는 최대 10개, 우리 cats는 최대 9개라 안전
-    const snap=await getDocs(query(collection(NW.db,'biz'),where('cat','in',cats)));
-    const demos=snap.docs.map(d=>({id:d.id,...d.data()}))
-      .filter(b=>b.demo && b.approved!==false);
-    demos.forEach(b=>{
-      if(sel.party < (b.minParty||1)) return;
-      const dist=haversine(myLoc,{lat:b.lat,lng:b.lng});
-      if(dist>(b.radius||2000)) return;
-      const type=Math.random()<0.75?'ok':'soon';
-      const delay=800+Math.random()*2500;
-      setTimeout(async()=>{
-        if(curCallId!==callId) return;
-        await setDoc(doc(NW.db,'calls',callId,'responses',b.id),{
-          bizId:b.id, bizName:b.name, cat:b.cat, type, dist, at:serverTimestamp()
-        }).catch(()=>{});
-      }, delay);
-    });
-  }catch(e){ console.warn('autoRespondDemo',e); }
-}
 function listenResponses(){
+  if(callUnsub)callUnsub();
   responses=[];
   const {collection,onSnapshot}=NW.fb;
   callUnsub=onSnapshot(collection(NW.db,'calls',curCallId,'responses'),snap=>{
@@ -1389,8 +1363,8 @@ function renderResponses(){
 }
 function card(r){const c=catOf(r.cat||sel.cats[0]);
   const badge=r.type==='ok'?'<span class="badge bd-ok">지금 가능</span>':'<span class="badge bd-soon">10분 후</span>';
-  return `<div class="bizcard" onclick="openDetail('${r.id}')"><div class="em">${c.e}</div>
-    <div class="info"><b>${r.bizName||'매장'}</b><div class="meta">${distLabel(r.dist)} · ${c.n}</div></div>${badge}</div>`;}
+  return `<div class="bizcard" onclick="openDetail('${NW.inline(r.id)}')"><div class="em">${c.e}</div>
+    <div class="info"><b>${NW.html(r.bizName||'매장')}</b><div class="meta">${distLabel(r.dist)} · ${NW.html(c.n)}</div></div>${badge}</div>`;}
 
 let callEndAt=0;
 function runCallTimer(end){callEndAt=end;clearInterval(callTimer);
@@ -1400,15 +1374,15 @@ function runCallTimer(end){callEndAt=end;clearInterval(callTimer);
   tick();callTimer=setInterval(tick,250);}
 async function endSearch(){
   if(!curCallId)return;
-  if(responses.length===0){
+  {
     const {doc,updateDoc}=NW.fb;
     await updateDoc(doc(NW.db,'calls',curCallId),{status:'expired'}).catch(()=>{});
-    cleanupCall();toast('주변에서 응답이 없었어요. 다시 시도해 주세요.');subShow('u-home');
+    cleanupCall();curCallId=null;toast('응답·선택 시간이 끝났어요. 다시 호출해주세요.');subShow('u-home');
   }
 }
 window.cancelCall=async()=>{
   if(curCallId){const {doc,updateDoc}=NW.fb;await updateDoc(doc(NW.db,'calls',curCallId),{status:'cancelled'}).catch(()=>{});}
-  cleanupCall();subShow('u-home');
+  cleanupCall();curCallId=null;subShow('u-home');
 };
 function cleanupCall(){clearInterval(callTimer);if(callUnsub){callUnsub();callUnsub=null;}}
 
@@ -1425,12 +1399,13 @@ window.openDetail=async(respId)=>{
   subShow('u-detail');
   // 사진
   $('d-photo').innerHTML = b.photo
-    ? `<img src="${b.photo}" style="width:100%;height:170px;object-fit:cover;border-radius:var(--rad)" onerror="this.parentNode.innerHTML='${photoFallback(c)}'">`
+    ? `<img src="${NW.html(NW.safeURL(b.photo))}" style="width:100%;height:170px;object-fit:cover;border-radius:var(--rad)" onerror="this.style.display='none'">`
     : photoFallback(c);
   $('d-name').textContent=r.bizName||'매장';
-  $('d-meta').textContent=`${c.e} ${c.n} · ${distLabel(r.dist)}`;
+  $('d-meta').textContent=`${c.e} ${NW.html(c.n)} · ${distLabel(r.dist)}`;
   $('d-badge').innerHTML = r.type==='ok'?'<span class="badge bd-ok">지금 가능</span>':'<span class="badge bd-soon">10분 후</span>';
   // 길찾기 링크
+  $('d-route').classList.toggle('hide',!(b.lat&&b.lng));
   if(b.lat&&b.lng)$('d-route').href=NW.kakaoRoute(r.bizName,b.lat,b.lng);
   else $('d-route').classList.add('hide');
   // 메뉴
@@ -1444,7 +1419,7 @@ function photoFallback(c){return `<div style="width:100%;height:170px;border-rad
 function renderMenu(menu){
   if(!menu||!menu.length){$('d-menu').innerHTML='';return;}
   $('d-menu').innerHTML=`<div class="h2" style="margin-top:24px">메뉴</div><div class="bizdetail">`+
-    menu.map(m=>`<div class="row"><span style="color:var(--tx)">${m.name}</span><b>${m.price?m.price.toLocaleString()+'원':'-'}</b></div>`).join('')+`</div>`;
+    menu.map(m=>`<div class="row"><span style="color:var(--tx)">${NW.html(m.name)}</span><b>${NW.html(m.price?m.price.toLocaleString()+'원':'-')}</b></div>`).join('')+`</div>`;
 }
 function renderInfo(b){
   const rows=[];
@@ -1453,7 +1428,7 @@ function renderInfo(b){
   rows.push(['주차',b.parking?'가능':'불가']);
   rows.push(['예약',b.reservation?'가능':'불가']);
   $('d-info').innerHTML=`<div class="h2" style="margin-top:24px">영업정보</div><div class="bizdetail">`+
-    rows.map(r=>`<div class="row"><span>${r[0]}</span><b>${r[1]}</b></div>`).join('')+`</div>`;
+    rows.map(r=>`<div class="row"><span>${r[0]}</span><b>${NW.html(r[1])}</b></div>`).join('')+`</div>`;
 }
 async function drawMap(b){
   const box=$('d-map');
@@ -1498,14 +1473,14 @@ window.confirmMatch=async()=>{
     matchData={callId:curCallId,...r,biz:detailBiz, party:sel.party};
     cleanupCall();
     await awardPoints(20, '호출 성사');
-    openMatched(nowMs()+MATCH_TTL*1000);
+    openMatched(matchExp.toMillis());
   }catch(e){
     console.error('[confirmMatch] 실패:',e);
     toast('매칭 실패: '+(e.code||e.message||'알 수 없는 오류'));
     if(btn){btn.disabled=false;btn.textContent='여기로 갈게요';}
     matching=false;
     return;
-  }finally{ matching=false; }
+  }finally{ matching=false;if(btn){btn.disabled=false;btn.textContent='여기로 갈게요';} }
 };
 function openMatched(end){const r=matchData,c=catOf(r.cat||sel.cats[0]);
   matchData._matchEnd=end;
@@ -1515,10 +1490,10 @@ function openMatched(end){const r=matchData,c=catOf(r.cat||sel.cats[0]);
   const b=r.biz||{};
   let routeRow='';
   if(b.lat&&b.lng)routeRow=`<div class="row"><span>길찾기</span><b><a href="${NW.kakaoRoute(r.bizName,b.lat,b.lng)}" target="_blank" rel="noopener" style="color:var(--y)">카카오맵 열기 →</a></b></div>`;
-  $('mDetail').innerHTML=`<div class="row"><span>업종</span><b>${c.e} ${c.n}</b></div>
-    <div class="row"><span>인원</span><b>${r.party||sel.party}명</b></div>
+  $('mDetail').innerHTML=`<div class="row"><span>업종</span><b>${c.e} ${NW.html(c.n)}</b></div>
+    <div class="row"><span>인원</span><b>${NW.html(r.party||sel.party)}명</b></div>
     <div class="row"><span>거리</span><b>${distLabel(r.dist||0)}</b></div>
-    ${b.phone?`<div class="row"><span>전화</span><b>${b.phone}</b></div>`:''}
+    ${b.phone?`<div class="row"><span>전화</span><b>${NW.html(b.phone)}</b></div>`:''}
     <div class="row"><span>상태</span><b style="color:var(--ok)">입장 가능</b></div>
     ${routeRow}`;
   subShow('u-matched');clearInterval(matchTimer);
@@ -1527,7 +1502,7 @@ function openMatched(end){const r=matchData,c=catOf(r.cat||sel.cats[0]);
     const left=(end-nowMs())/1000;
     $('mTimer').textContent=fmtT(left);
     // 매장이 도착 확인하면 done 상태로 → 자동 종료
-    if(left<=0){clearInterval(matchTimer);}
+    if(left<=0){noShow();}
   };
   tick();matchTimer=setInterval(tick,500);
   // 매장이 도착확인/노쇼 처리 감지
@@ -1565,12 +1540,9 @@ function watchMatchStatus(){
   });
 }
 async function onNoShowReceived(){
-  penaltyUntil=nowMs()+PENALTY*1000;
-  const {doc,setDoc,Timestamp}=NW.fb;
-  await setDoc(doc(NW.db,'users',NW.uid),{penaltyUntil:Timestamp.fromMillis(penaltyUntil)},{merge:true}).catch(()=>{});
-  await saveHist('noshow');
+  await refreshPenalty();
   matchData=null;curCallId=null;
-  toast('노쇼 처리됐어요. 30분 패널티가 적용됩니다.');
+  toast('노쇼 처리됐어요. 도착 마감 후 30분 동안 호출이 제한됩니다.');
   renderPenaltyBanner();subShow('u-home');
 }
 
@@ -1590,7 +1562,7 @@ function updateMatchBar(){
       const left=Math.max(0,Math.ceil((end-nowMs())/1000));
       icon='🚶'; timeText=`${fmtT(left)} 내 도착`;
     }
-    bar.innerHTML=`<span class="mb-i">${icon}</span><span class="mb-txt">${label} · ${timeText}</span><span class="mb-arrow">›</span>`;
+    bar.innerHTML=`<span class="mb-i">${icon}</span><span class="mb-txt">${NW.html(label)} · ${timeText}</span><span class="mb-arrow">›</span>`;
   };
   bar.classList.remove('hide');
   render(); matchBarTimer=setInterval(render,500);
@@ -1620,65 +1592,28 @@ async function coarsenCallLocation(callId){
   }catch(e){}
 }
 
-window.arrive=async()=>{clearInterval(matchTimer);
-  if(matchData){const {doc,updateDoc,serverTimestamp}=NW.fb;await updateDoc(doc(NW.db,'calls',matchData.callId),{status:'done',arrivedAt:serverTimestamp()}).catch(()=>{});await coarsenCallLocation(matchData.callId);}
-  await saveHist('done');toast('도착 완료! 즐거운 시간 되세요 🎉');matchData=null;curCallId=null;subShow('u-home');};
 window.cancelMatch=async()=>{
-  if(!confirm('정말 매칭을 취소할까요? 매장에 자리를 비워주세요.'))return;
-  clearInterval(matchTimer);
-  if(matchStatusUnsub){matchStatusUnsub();matchStatusUnsub=null;}
-  if(matchData){const {doc,updateDoc}=NW.fb;await updateDoc(doc(NW.db,'calls',matchData.callId),{status:'cancelled'}).catch(()=>{});await coarsenCallLocation(matchData.callId);}
-  await saveHist('cancelled');
-  hideMatchBar();
-  matchData=null;curCallId=null;subShow('u-home');
+  if(!matchData || !confirm('정말 매칭을 취소할까요?'))return;
+  try{
+    await NW.fb.updateDoc(NW.fb.doc(NW.db,'calls',matchData.callId),{status:'cancelled'});
+    clearInterval(matchTimer);
+    if(matchStatusUnsub){matchStatusUnsub();matchStatusUnsub=null;}
+    hideMatchBar();matchData=null;curCallId=null;subShow('u-home');
+  }catch(e){toast('취소 실패: '+e.message);}
 };
+let expiring=false;
 async function noShow(){
-  const {doc,updateDoc,setDoc,Timestamp}=NW.fb;
-  if(matchData){await updateDoc(doc(NW.db,'calls',matchData.callId),{status:'noshow'}).catch(()=>{});await coarsenCallLocation(matchData.callId);}
-  penaltyUntil=nowMs()+PENALTY*1000;
-  await setDoc(doc(NW.db,'users',NW.uid),{penaltyUntil:Timestamp.fromMillis(penaltyUntil)},{merge:true}).catch(()=>{});
-  await saveHist('noshow');matchData=null;curCallId=null;
-  toast('시간 초과 — 노쇼 처리되어 30분 패널티가 적용됐어요.');renderPenaltyBanner();subShow('u-home');}
-
-async function saveHist(status){if(!NW.uid)return;
-  const {collection,addDoc,serverTimestamp}=NW.fb;
-  await addDoc(collection(NW.db,'users',NW.uid,'history'),{
-    bizId:matchData?.id||matchData?.matchedBizId||'',
-    bizName:matchData?.bizName||'-',cat:matchData?.cat||sel.cats?.[0]||'',party:matchData?.party||sel.party,status,at:serverTimestamp()}).catch(()=>{});
-  // 포인트 적립/차감
-  const POINT_TABLE = { matched:20, done:100, noshow:-200, cancelled:0 };
-  const REASON_TABLE = { matched:'호출 성사', done:'도착 완료', noshow:'노쇼', cancelled:'취소' };
-  const pts = POINT_TABLE[status];
-  if(pts) await awardPoints(pts, REASON_TABLE[status]);
+  if(expiring||!matchData?.callId)return;
+  expiring=true;
+  try{await NW.expireCall(matchData.callId);}catch(e){toast('만료 처리 재시도 중');}
+  finally{expiring=false;}
 }
+
+async function saveHist(){ /* 서버 settleCall이 확정된 호출로 기록합니다. */ }
 
 /* 포인트 시스템 */
 let userPoints = 0;
-async function awardPoints(delta, reason){
-  if(!NW.uid || !delta) return;
-  const {doc,getDoc,setDoc,serverTimestamp,collection,addDoc,increment}=NW.fb;
-  try{
-    // 사용자 문서에 포인트 누적 (increment 사용)
-    const userRef=doc(NW.db,'users',NW.uid);
-    const inc = NW.fb.increment ? NW.fb.increment(delta) : delta;
-    // increment가 없으면 트랜잭션 없이 단순 가산
-    if(NW.fb.increment){
-      await setDoc(userRef,{points:NW.fb.increment(delta)},{merge:true});
-    }else{
-      // 수동 가산 (경합 가능하지만 단일 사용자라 문제 없음)
-      const s=await getDoc(userRef);
-      const cur = s.exists() && s.data().points ? s.data().points : 0;
-      await setDoc(userRef,{points:cur+delta},{merge:true});
-    }
-    // 포인트 로그 (서브컬렉션)
-    await addDoc(collection(NW.db,'users',NW.uid,'points'),{
-      delta, reason, balance:null, at:serverTimestamp()
-    }).catch(()=>{});
-    // 토스트로 알림
-    const emoji = delta>0 ? '💰' : '📉';
-    toast(`${emoji} ${reason} ${delta>0?'+':''}${delta}P`);
-  }catch(e){console.warn('[awardPoints] 실패:',e);}
-}
+async function awardPoints(){ /* 서버 이벤트의 중복 방지 원장이 포인트를 정산합니다. */ }
 
 async function loadPoints(){
   if(!NW.uid) { userPoints=0; }
@@ -1712,12 +1647,12 @@ async function renderMy(){
     const alreadyReviewed = canReview && myReviewed.has(v.bizId);
     let actionBtn='';
     if(canReview && !alreadyReviewed){
-      actionBtn = `<button class="chip" style="margin-top:6px;padding:5px 10px;font-size:11px;color:var(--y);border-color:var(--y)" onclick="openReviewFromHist('${v.bizId}','${(v.bizName||'').replace(/'/g,'')}')">⭐ 리뷰 쓰기 (+50P)</button>`;
+      actionBtn = `<button class="chip" style="margin-top:6px;padding:5px 10px;font-size:11px;color:var(--y);border-color:var(--y)" onclick="openReviewFromHist('${NW.inline(v.bizId)}','${NW.inline((v.bizName||'').replace(/'/g,''))}')">⭐ 리뷰 쓰기 (+50P)</button>`;
     }else if(alreadyReviewed){
       actionBtn = `<span style="margin-top:6px;display:inline-block;font-size:11px;color:var(--tx3)">✓ 리뷰 작성됨</span>`;
     }
-    return `<div class="hist-item"><div class="hi-l"><b>${c.e} ${v.bizName}</b>
-      <small>${v.party}명 · ${t.getMonth()+1}/${t.getDate()} ${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')}</small>
+    return `<div class="hist-item"><div class="hi-l"><b>${c.e} ${NW.html(v.bizName)}</b>
+      <small>${NW.html(v.party)}명 · ${t.getMonth()+1}/${t.getDate()} ${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')}</small>
       ${actionBtn}</div>
       <span class="hs" style="background:${s[1]};color:${s[2]}">${s[0]}</span></div>`;}).join('');}
 
@@ -1736,8 +1671,8 @@ async function renderPointsBlock(){
     const sign = p.delta>0?'+':'';
     const color = p.delta>0?'var(--ok)':'var(--no)';
     return `<div style="display:flex;justify-content:space-between;font-size:13px;padding:6px 0;border-bottom:1px solid var(--bd)">
-      <span style="color:var(--tx2)">${p.reason||''} · ${t.getMonth()+1}/${t.getDate()}</span>
-      <b style="color:${color}">${sign}${p.delta}P</b></div>`;
+      <span style="color:var(--tx2)">${NW.html(p.reason||'')} · ${t.getMonth()+1}/${t.getDate()}</span>
+      <b style="color:${color}">${sign}${NW.html(p.delta)}P</b></div>`;
   }).join('') || '<div class="muted" style="font-size:12px;padding:8px 0">아직 포인트 내역이 없어요.</div>';
   $('myPoints').innerHTML=`
     <div class="statbox" style="margin-top:0">
@@ -1757,7 +1692,7 @@ function renderMyNick(){
       <div style="font-size:36px">🎭</div>
       <div style="flex:1">
         <div style="font-size:11px;color:var(--tx3);font-weight:700">현재 닉네임</div>
-        <div style="font-size:18px;font-weight:800;color:var(--y);margin-top:2px">${nick}</div>
+        <div style="font-size:18px;font-weight:800;color:var(--y);margin-top:2px">${NW.html(nick)}</div>
         <div style="font-size:11px;color:var(--tx3);margin-top:4px">매장과 커뮤니티에 이 이름으로 표시돼요</div>
       </div>
       <button onclick="openChangeNick()" style="background:var(--bg3);color:var(--y);border:1px solid var(--y);padding:8px 12px;font-size:12px;font-weight:700;border-radius:8px">✏️ 변경</button>
@@ -1806,14 +1741,14 @@ async function renderPartner(){
   const biz=await NW.myBusiness();
   if(biz && biz.approved){
     body.innerHTML=`<div class="statbox" style="margin-top:20px"><b style="color:var(--ok)">✓ 승인된 파트너</b>
-      <div class="muted" style="margin-top:6px">${biz.name}</div></div>
+      <div class="muted" style="margin-top:6px">${NW.html(biz.name)}</div></div>
       <button class="cta" style="margin-top:16px" onclick="location.href='merchant.html'">매장 콘솔 열기 →</button>`;
     return;
   }
   if(biz && !biz.approved){
     body.innerHTML=`<div class="penalty" style="border-color:var(--soon);background:var(--soonbg);margin-top:20px">
       <div class="pi">🕒</div><div><b style="color:var(--soon)">승인 대기 중</b>
-      <div class="pt" style="color:var(--soon)">"${biz.name}" · 관리자 검토중</div></div></div>
+      <div class="pt" style="color:var(--soon)">"${NW.html(biz.name)}" · 관리자 검토중</div></div></div>
       <div class="demo-hint">관리자가 승인하면 다음 로그인 때 매장 콘솔로 바로 연결돼요.</div>`;
     return;
   }
@@ -1836,7 +1771,7 @@ async function renderPartner(){
       <div id="pPick" style="width:100%;height:200px;border-radius:var(--rad);margin-top:8px;background:var(--bg2);border:1px solid var(--bd);overflow:hidden"></div></div>
     <button class="cta" id="pBtn" onclick="submitPartner()" disabled>매장 파트너 신청하기</button>
     <div class="demo-hint">신청하면 <b>승인 대기</b> 상태가 되고, 관리자(BIMILCALL 운영팀) 승인 후 매장 콘솔이 열려요.</div>`;
-  $('pCat').innerHTML=NW.CATS.map(c=>`<button class="chip" data-c="${c.k}" onclick="pPickCat('${c.k}')">${c.e} ${c.n}</button>`).join('');
+  $('pCat').innerHTML=NW.CATS.map(c=>`<button class="chip" data-c="${c.k}" onclick="pPickCat('${NW.inline(c.k)}')">${c.e} ${NW.html(c.n)}</button>`).join('');
   $('pRad').innerHTML=NW.RADII.map(r=>`<button class="chip ${r===1000?'on':''}" data-r="${r}" onclick="pPickRad(${r})">${distLabel(r)}</button>`).join('');
   $('pName').addEventListener('input',pChk);
   pGetLoc();
@@ -1863,9 +1798,9 @@ window.pSearchAddr=()=>{
 };
 function pChk(){const b=$('pBtn');if(b)b.disabled=!($('pName').value.trim()&&pSel.cat&&pLoc);}
 window.submitPartner=async()=>{
-  const {collection,addDoc,serverTimestamp}=NW.fb;
+  const {doc,setDoc,serverTimestamp}=NW.fb;
   const menu=$('pMenu').value.split('\n').map(l=>l.trim()).filter(Boolean).map(l=>{const i=l.lastIndexOf(',');if(i<0)return{name:l,price:0};return{name:l.slice(0,i).trim(),price:parseInt(l.slice(i+1).replace(/[^0-9]/g,''))||0};});
-  await addDoc(collection(NW.db,'biz'),{
+  await setDoc(doc(NW.db,'biz',NW.uid),{
     name:$('pName').value.trim(),cat:pSel.cat,radius:pSel.rad,lat:pLoc.lat,lng:pLoc.lng,status:'open',
     approved:false,ownerId:NW.uid,ownerName:NW.user?.displayName||'',ownerEmail:NW.user?.email||'',
     menu,hours:$('pHours').value.trim(),phone:$('pPhone').value.trim(),parking:false,reservation:true,
@@ -1915,35 +1850,14 @@ window.clearMyHistory=async()=>{
 };
 
 window.deleteAccount=async()=>{
-  if(!confirm('정말 회원 탈퇴할까요?\n\n• 프로필, 호출 기록, 패널티 정보가 모두 영구 삭제됩니다\n• 진행 중인 호출이 있으면 자동 취소됩니다\n• 되돌릴 수 없습니다\n\n계속하려면 확인을 누르세요.'))return;
-  if(!confirm('마지막 확인 — 정말로 모든 데이터를 삭제하시겠어요?'))return;
-  const {doc,deleteDoc,getDocs,collection,query,where,updateDoc}=NW.fb;
-  toast('데이터를 삭제하는 중…');
+  if(!confirm('계정·호출·리뷰·게시글·댓글·좋아요·포인트를 영구 삭제할까요?'))return;
   try{
-    // 1) 진행 중인 호출 취소
-    const active=await getDocs(query(collection(NW.db,'calls'),where('callerId','==',NW.uid)));
-    for(const d of active.docs){
-      const s=d.data().status;
-      if(s==='searching'||s==='matched'){
-        await updateDoc(d.ref,{status:'cancelled'}).catch(()=>{});
-      }
-    }
-    // 2) history 서브컬렉션 삭제
-    const hist=await getDocs(collection(NW.db,'users',NW.uid,'history'));
-    for(const d of hist.docs){ await deleteDoc(d.ref).catch(()=>{}); }
-    // 3) 프로필 문서 삭제
-    await deleteDoc(doc(NW.db,'users',NW.uid)).catch(()=>{});
-    // 4) Firebase Auth 계정 삭제 시도 (재인증 필요할 수 있음)
-    try{
-      if(NW.user && NW.user.delete) await NW.user.delete();
-    }catch(authErr){
-      // 재인증 필요 — 로그아웃 후 안내
-      console.warn('auth delete needs re-auth',authErr);
-    }
-    toast('회원 탈퇴 완료. 안녕히 가세요.');
-    setTimeout(()=>{ NW.logout(); }, 1500);
-  }catch(e){toast('탈퇴 실패: '+e.message);}
+    await NW.callServer('deleteMyAccount');
+    toast('회원 탈퇴 완료');
+    await NW.logout();
+  }catch(e){toast('탈퇴 미완료: '+e.message);}
 };
+
 
 
 init();

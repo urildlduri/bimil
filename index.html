@@ -119,7 +119,9 @@ function showScr(id){document.querySelectorAll('body>.scr').forEach(s=>s.classLi
 // 스플래시
 setTimeout(()=>{const sp=$('splash');sp.style.opacity='0';setTimeout(()=>sp.style.display='none',500);},1200);
 
+let signupInProgress=false;
 NW.onAuth(async u=>{
+  if(signupInProgress)return;
   if(u){ await afterLogin(u); }
   else {
     showScr('loginScr');
@@ -184,20 +186,23 @@ window.doSignup=async()=>{
   if(pw !== pw2){ toast('비밀번호가 일치하지 않습니다'); return; }
   if(!by || by < 1920 || by > new Date().getFullYear()){ toast('출생연도를 확인해주세요'); return; }
   if(!bm || bm < 1 || bm > 12 || !bd || bd < 1 || bd > 31){ toast('생년월일을 확인해주세요'); return; }
-  const age = new Date().getFullYear() - by;
+  const today=new Date(), birth=new Date(by,bm-1,bd);
+  if(birth.getFullYear()!==by || birth.getMonth()!==bm-1 || birth.getDate()!==bd){toast('존재하는 생년월일을 입력해주세요');return;}
+  const age = today.getFullYear()-by-((today.getMonth()<bm-1 || (today.getMonth()===bm-1 && today.getDate()<bd))?1:0);
   if(age < 19){ toast('만 19세 이상만 가입 가능합니다'); return; }
   if(!$('suAgree1').checked){ toast('약관 동의가 필요합니다'); return; }
   if(!$('suAgree2').checked){ toast('19세 이상 확인 동의가 필요합니다'); return; }
   if(!signupNick) rerollSignupNick();
 
   try{
+    signupInProgress=true;
     const u = await NW.userIdSignup({userId, password:pw, nickname:signupNick, birthYear:by});
     toast('🎉 가입 완료! 환영합니다, '+signupNick);
     setTimeout(()=>afterLogin(u), 600);
   }catch(e){
     const msg = errMsg(e.code) || e.message;
     toast('가입 실패: '+msg);
-  }
+  }finally{signupInProgress=false;}
 };
 
 function errMsg(code){

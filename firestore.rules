@@ -1,91 +1,199 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    function isAdmin() {
-      return request.auth != null
-        && request.auth.token.email in ['urildlduri@gmail.com'];
-    }
     function signedIn() { return request.auth != null; }
-
+    function active() {
+      return signedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('deleting',false) == false;
+    }
+    // 이메일 문자열 사칭 방지: 실제 인증된 운영자 이메일만 관리자.
+    function isAdmin() {
+      return signedIn() && request.auth.token.get('email_verified',false) == true &&
+        request.auth.token.get('email','') in ['urildlduri@gmail.com','liferefix@naver.com'];
+    }
+    function own(uid) { return signedIn() && request.auth.uid == uid; }
+    function biz(id) { return get(/databases/$(database)/documents/biz/$(id)).data; }
+    function isMerchantAccount() {
+      return active() && request.auth.token.get('email','').matches('.*@bimilcall(-biz)?\\.local') &&
+        exists(/databases/$(database)/documents/biz/$(request.auth.uid)) &&
+        biz(request.auth.uid).ownerId == request.auth.uid && biz(request.auth.uid).approved == true;
+    }
+    function isUser() {
+      return active() && !isMerchantAccount() && request.auth.token.get('email','').matches('.*@bimilcall\\.local');
+    }
+    function text(x,max) { return x is string && x.size() > 0 && x.size() <= max; }
+    function changes(keys) { return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys); }
+    function validBiz() {
+      let d=request.resource.data;
+      return text(d.name,80) && d.cat in ['karaoke_bar','karaoke','danran','yuheung','club','massage','spa'] &&
+        d.status in ['open','busy','closed'] && d.get('radius',1000) in [500,1000,2000] &&
+        d.lat is number && d.lat >= -90 && d.lat <= 90 &&
+        d.lng is number && d.lng >= -180 && d.lng <= 180 &&
+        d.get('minParty',1) is int && d.get('minParty',1) >= 1 && d.get('minParty',1) <= 6;
+    }
     match /users/{uid} {
-      allow read: if signedIn();
-      allow create, update: if request.auth.uid == uid;
+      allow read: if own(uid) || isAdmin();
+      // 포인트·패널티·activeCallId는 서버 전용. 프로필 삭제로 패널티 우회 금지.
+      allow create: if own(uid) && request.resource.data.keys().hasOnly([
+        'userId','email','nickname','birthYear','role','points','createdAt','termsAgreedAt'
+      ]) && request.resource.data.role == 'user' && request.resource.data.points == 0 &&
+        request.resource.data.email == request.auth.token.email && text(request.resource.data.nickname,80) &&
+        (request.resource.data.birthYear == null ||
+          (request.resource.data.birthYear is int && request.resource.data.birthYear >= 1920 && request.resource.data.birthYear <= request.time.year()-19)) &&
+        request.resource.data.createdAt == request.time && request.resource.data.termsAgreedAt == request.time;
+      allow update: if isAdmin() || (own(uid) && active() && text(request.resource.data.nickname,20) && (
+        changes(['nickname']) ||
+        (resource.data.get('birthYear',null) == null && changes(['userId','nickname','birthYear']) &&
+          request.resource.data.birthYear is int && request.resource.data.birthYear >= 1920 &&
+          request.resource.data.birthYear <= request.time.year()-19)
+      ));
       allow delete: if isAdmin();
-      match /history/{doc} {
-        allow read, write: if request.auth.uid == uid;
+      match /history/{hid} {
+        allow read: if own(uid) || isAdmin();
+        allow delete: if own(uid) || isAdmin();
+        allow create, update: if isAdmin();
+      }
+      match /points/{pid} {
+        allow read: if own(uid) || isAdmin();
+        allow write: if isAdmin();
       }
     }
-
-    match /biz/{id} {
-      allow read: if signedIn();
-      allow create: if signedIn()
-        && request.resource.data.ownerId == request.auth.uid
-        && request.resource.data.approved == false;
-      // 수정: 관리자 / 오너 / 멤버 / 또는 평점 필드만 갱신(리뷰 작성·삭제 시)
-      allow update: if isAdmin()
-        || (signedIn() && resource.data.ownerId == request.auth.uid
-            && request.resource.data.approved == resource.data.approved)
-        || (signedIn() && resource.data.memberEmails is list
-            && request.auth.token.email in resource.data.memberEmails
-            && request.resource.data.ownerId == resource.data.ownerId
-            && request.resource.data.approved == resource.data.approved
-            && request.resource.data.memberEmails == resource.data.memberEmails)
-        || (signedIn()
-            && request.resource.data.diff(resource.data).affectedKeys()
-               .hasOnly(['ratingAvg','ratingCount']));
+    match /calls/{callId} {
+      function caller() { return isUser() && resource.data.callerId == request.auth.uid; }
+      function answered() {
+        return isMerchantAccount() && resource.data.get('matchedBizId','') == request.auth.uid &&
+          exists(/databases/$(database)/documents/calls/$(callId)/responses/$(request.auth.uid));
+      }
+      function response(id) { return get(/databases/$(database)/documents/calls/$(callId)/responses/$(id)).data; }
+      function matchDeadline() {
+        return request.resource.data.matchExpiresAt is timestamp &&
+          request.resource.data.matchExpiresAt >= request.time + duration.value(890,'s') &&
+          request.resource.data.matchExpiresAt <= request.time + duration.value(910,'s') &&
+          request.resource.data.goingAt == request.time;
+      }
+      function userTransition() {
+        return caller() && (
+          // 사용자는 도착완료를 직접 조작할 수 없다.
+          (resource.data.status == 'searching' && request.resource.data.status == 'going' &&
+            resource.data.expiresAt > request.time && changes(['status','matchedBizId','matchedBizName','matchedAt','goingAt','matchExpiresAt']) &&
+            response(request.resource.data.matchedBizId).type in ['ok','soon'] &&
+            biz(request.resource.data.matchedBizId).approved == true &&
+            request.resource.data.matchedBizName == biz(request.resource.data.matchedBizId).name &&
+            request.resource.data.matchedAt == request.time && matchDeadline()) ||
+          (resource.data.status == 'accepted' && resource.data.goingDeadline > request.time &&
+            request.resource.data.status == 'going' && changes(['status','goingAt','matchExpiresAt']) && matchDeadline()) ||
+          (resource.data.status in ['searching','accepted','going','matched'] && request.resource.data.status == 'cancelled' && changes(['status']) &&
+            (!(resource.data.status in ['going','matched']) || resource.data.matchExpiresAt > request.time)) ||
+          (resource.data.status == 'searching' && resource.data.expiresAt <= request.time && request.resource.data.status == 'expired' && changes(['status']))
+        );
+      }
+      function merchantTransition() {
+        return isMerchantAccount() && (
+          (resource.data.status == 'searching' && resource.data.expiresAt > request.time &&
+            resource.data.get('directBizId','') == request.auth.uid && response(request.auth.uid).type == 'ok' &&
+            request.resource.data.status == 'accepted' && request.resource.data.matchedBizId == request.auth.uid &&
+            request.resource.data.matchedBizName == biz(request.auth.uid).name &&
+            request.resource.data.acceptedAt == request.time &&
+            request.resource.data.goingDeadline >= request.time + duration.value(20,'s') &&
+            request.resource.data.goingDeadline <= request.time + duration.value(40,'s') &&
+            changes(['status','matchedBizId','matchedBizName','acceptedAt','goingDeadline'])) ||
+          (answered() && resource.data.status in ['going','matched'] && (
+            (request.resource.data.status == 'done' && resource.data.matchExpiresAt > request.time &&
+              request.resource.data.arrivedAt == request.time && changes(['status','arrivedAt'])) ||
+            (request.resource.data.status == 'noshow' && resource.data.matchExpiresAt <= request.time && changes(['status']))
+          ))
+        );
+      }
+      // 일반 사용자는 타인의 위치·닉네임·호출 이력을 읽을 수 없다.
+      allow read: if isAdmin() || (active() && resource.data.callerId == request.auth.uid) ||
+        (isMerchantAccount() && (resource.data.get('matchedBizId','') == request.auth.uid ||
+          (resource.data.status == 'searching' && biz(request.auth.uid).cat in resource.data.cats)));
+      // 서버 callable이 원자적으로 중복 호출·패널티를 검증해 생성한다.
+      allow create: if false;
+      allow update: if isAdmin() || userTransition() || merchantTransition();
       allow delete: if isAdmin();
-    }
-
-    // 리뷰 (1매장 1사용자 — 문서 id가 bizId_uid)
-    match /reviews/{rid} {
-      allow read: if signedIn();
-      allow create, update: if signedIn()
-        && request.resource.data.uid == request.auth.uid;
-      allow delete: if isAdmin()
-        || (signedIn() && resource.data.uid == request.auth.uid);
-    }
-
-    match /calls/{id} {
-      allow read: if signedIn();
-      allow create: if signedIn()
-        && request.resource.data.callerId == request.auth.uid;
-      // 호출 수정 허용:
-      // - 호출자 본인 (취소·갈게요·도착·노쇼 등 모든 상태 변경)
-      // - 로그인된 누구나 status를 '매칭/수락/진행/완료/노쇼/취소/만료' 중 하나로 설정 가능
-      //   (매장이 손님 매칭 응답 + 도착확인 + 노쇼 처리 등)
-      allow update: if signedIn() && (
-        resource.data.callerId == request.auth.uid
-        || request.resource.data.status in ['matched','accepted','going','done','noshow','cancelled','expired']
-      );
-      allow delete: if isAdmin()
-        || (signedIn() && resource.data.callerId == request.auth.uid);
       match /responses/{bizId} {
-        allow read: if signedIn();
-        allow write: if signedIn();
+        function call() { return get(/databases/$(database)/documents/calls/$(callId)).data; }
+        function inRange() {
+          return call().get('directBizId','') == bizId || (
+            call().party >= biz(bizId).get('minParty',1) &&
+            latlng.value(call().lat,call().lng).distance(latlng.value(biz(bizId).lat,biz(bizId).lng)) <= biz(bizId).get('radius',1000)
+          );
+        }
+        allow read: if isAdmin() || (active() && call().callerId == request.auth.uid) ||
+          (isMerchantAccount() && bizId == request.auth.uid);
+        // 본인 UID 경로만 허용. 이메일 도메인만으로 권한을 주지 않는다.
+        allow create, update: if isMerchantAccount() && bizId == request.auth.uid &&
+          call().status == 'searching' && call().expiresAt > request.time &&
+          biz(bizId).status in ['open','busy'] &&
+          inRange() && biz(bizId).cat in call().cats && call().get('directBizId',bizId) == bizId &&
+          request.resource.data.keys().hasOnly(['bizId','bizName','cat','type','dist','responderUid','responderName','responderEmail','at']) &&
+          request.resource.data.bizId == bizId && request.resource.data.bizName == biz(bizId).name &&
+          request.resource.data.cat == biz(bizId).cat &&
+          request.resource.data.responderUid == request.auth.uid &&
+          request.resource.data.responderEmail == request.auth.token.email &&
+          request.resource.data.type in ['ok','soon','no'] &&
+          (biz(bizId).status != 'busy' || request.resource.data.type != 'ok') &&
+          request.resource.data.dist is number && request.resource.data.dist >= 0 &&
+          request.resource.data.at == request.time;
+        allow delete: if isMerchantAccount() && bizId == request.auth.uid && call().status == 'searching';
       }
     }
-
-    // 익명 커뮤니티 — 로그인 사용자 누구나 읽기, 작성은 본인 uid 강제,
-    // 수정·삭제는 작성자 본인 또는 관리자
+    match /biz/{bizId} {
+      allow read: if active() || isAdmin();
+      // 일반 사용자는 승인 대기 신청만 생성. 응답하려면 운영자가 UID 매장 계정을 발급한다.
+      allow create: if isAdmin() || (isUser() && validBiz() && request.resource.data.ownerId == request.auth.uid &&
+        request.resource.data.approved == false &&
+        !request.resource.data.keys().hasAny(['isHot','memberEmails','merchantId','ratingAvg','ratingCount','demo']));
+      // 승인·소유자·추천·평점·직원 권한은 소유자도 변경 불가.
+      allow update: if isAdmin() || (active() && resource.data.ownerId == request.auth.uid &&
+        changes(['name','cat','radius','minParty','lat','lng','photo','website','menu','hours','phone','parking','reservation','status']) &&
+        validBiz());
+      allow delete: if isAdmin();
+    }
+    match /reviews/{reviewId} {
+      function proof() { return get(/databases/$(database)/documents/calls/$(request.resource.data.callId)).data; }
+      allow read: if active() || isAdmin();
+      // 서버 기록으로 방문 검증. 자기신고 history는 리뷰 자격으로 쓰지 않는다.
+      allow create, update: if isUser() && request.resource.data.keys().hasOnly(['bizId','bizName','uid','userName','rating','text','at','callId']) &&
+        request.resource.data.uid == request.auth.uid &&
+        reviewId == request.resource.data.bizId + '_' + request.auth.uid &&
+        proof().callerId == request.auth.uid && proof().matchedBizId == request.resource.data.bizId && proof().status == 'done' &&
+        request.resource.data.rating is int && request.resource.data.rating >= 1 && request.resource.data.rating <= 5 &&
+        request.resource.data.text is string && request.resource.data.text.size() <= 1500 &&
+        text(request.resource.data.userName,20) && request.resource.data.at == request.time;
+      allow delete: if isAdmin() || (isUser() && resource.data.uid == request.auth.uid);
+    }
     match /community/{postId} {
-      allow read: if signedIn();
-      allow create: if signedIn()
-        && request.resource.data.uid == request.auth.uid
-        && request.resource.data.title is string
-        && request.resource.data.title.size() >= 2
-        && request.resource.data.title.size() <= 100
-        && request.resource.data.content is string
-        && request.resource.data.content.size() >= 5
-        && request.resource.data.content.size() <= 2000
-        && request.resource.data.nickname is string;
-      // 본인 수정: 좋아요·댓글수 같은 카운터는 누구나 증가 가능
-      allow update: if isAdmin()
-        || (signedIn() && resource.data.uid == request.auth.uid)
-        || (signedIn() && request.resource.data.diff(resource.data).affectedKeys()
-            .hasOnly(['likes','commentCount']));
-      allow delete: if isAdmin()
-        || (signedIn() && resource.data.uid == request.auth.uid);
+      allow read: if active() || isAdmin();
+      allow create: if isUser() && request.resource.data.keys().hasOnly(['title','content','category','nickname','uid','likes','commentCount','createdAt']) &&
+        request.resource.data.uid == request.auth.uid && text(request.resource.data.title,60) && text(request.resource.data.content,1500) &&
+        text(request.resource.data.nickname,20) && request.resource.data.category in ['live','review','recommend','hiring','free'] &&
+        request.resource.data.likes == 0 && request.resource.data.commentCount == 0 && request.resource.data.createdAt == request.time;
+      // 카운터는 서버가 집계. 사용자 ID나 타인의 글 변경을 금지한다.
+      allow update: if isAdmin();
+      allow delete: if isAdmin() || (isUser() && resource.data.uid == request.auth.uid);
+      match /comments/{commentId} {
+        allow read: if active() || isAdmin();
+        allow create: if isUser() && exists(/databases/$(database)/documents/community/$(postId)) &&
+          request.resource.data.keys().hasOnly(['content','nickname','uid','at']) &&
+          request.resource.data.uid == request.auth.uid && text(request.resource.data.content,500) &&
+          text(request.resource.data.nickname,20) && request.resource.data.at == request.time;
+        allow delete: if isAdmin() || (isUser() && resource.data.uid == request.auth.uid);
+        allow update: if false;
+      }
+      match /likes/{uid} {
+        allow read: if active() || isAdmin();
+        allow create: if isUser() && own(uid) && exists(/databases/$(database)/documents/community/$(postId)) &&
+          request.resource.data.keys().hasOnly(['uid','at']) && request.resource.data.uid == uid && request.resource.data.at == request.time;
+        allow delete: if isUser() && own(uid);
+        allow update: if false;
+      }
+    }
+    // collectionGroup 통계 쿼리. 쓰기 권한은 절대로 추가하지 않는다.
+    match /{path=**}/history/{id} { allow read: if isAdmin(); }
+    match /{path=**}/points/{id} { allow read: if isAdmin(); }
+    match /{path=**}/responses/{id} {
+      allow read: if isAdmin() || (isMerchantAccount() && resource.data.bizId == request.auth.uid);
     }
   }
 }
